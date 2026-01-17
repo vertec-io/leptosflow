@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XYFlow Leptos Examples</title>
+    <link data-trunk rel="copy-file" href="Trunk.toml" />
+    <style>
+        /* Base styles */
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        /* App Layout - Sidebar + Main Content */
+        .app-layout {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Navigation Sidebar */
+        .nav-sidebar {
+            width: 260px;
+            min-width: 260px;
+            background: #1a192b;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .nav-header {
+            padding: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-logo {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 18px;
+            display: block;
+        }
+
+        .nav-logo:hover {
+            color: #ff0072;
+        }
+
+        /* Search Input */
+        .nav-search {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-search-container {
+            display: flex;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 0 10px;
+            position: relative;
+        }
+
+        .nav-search-icon {
+            width: 16px;
+            height: 16px;
+            opacity: 0.6;
+            flex-shrink: 0;
+        }
+
+        .nav-search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: white;
+            font-size: 13px;
+            padding: 8px 8px;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .nav-search-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .nav-search-input:focus {
+            outline: none;
+        }
+
+        .nav-search-container:focus-within {
+            background: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 0 2px rgba(255, 0, 114, 0.3);
+        }
+
+        .nav-search-shortcut {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.4);
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+            flex-shrink: 0;
+        }
+
+        .nav-search-stats {
+            margin-top: 8px;
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+            text-align: center;
+        }
+
+        .nav-categories {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .nav-category {
+            margin-bottom: 4px;
+        }
+
+        .nav-category-header {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            padding: 8px 16px;
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+            text-align: left;
+            gap: 8px;
+        }
+
+        .nav-category-header:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-category-icon {
+            width: 16px;
+            text-align: center;
+            font-family: monospace;
+        }
+
+        .nav-category-name {
+            flex: 1;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .nav-category-count {
+            font-size: 11px;
+            opacity: 0.6;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .nav-items {
+            padding-left: 24px;
+        }
+
+        .nav-item {
+            display: block;
+            padding: 6px 16px;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            font-size: 13px;
+            border-left: 2px solid transparent;
+        }
+
+        .nav-item:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-item.active, .nav-item[aria-current="page"] {
+            color: #ff0072;
+            border-left-color: #ff0072;
+            background: rgba(255, 0, 114, 0.1);
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            background: #fafafa;
+        }
+
+        /* Example Container */
+        .example-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+
+        /* Home Page Styles */
+        .home-page {
+            padding: 40px;
+            overflow-y: auto;
+            height: 100%;
+        }
+
+        .home-header {
+            margin-bottom: 40px;
+        }
+
+        .home-header h1 {
+            margin: 0 0 8px 0;
+            font-size: 32px;
+            color: #1a192b;
+        }
+
+        .home-subtitle {
+            margin: 0;
+            font-size: 16px;
+            color: #666;
+        }
+
+        .home-categories {
+            display: flex;
+            flex-direction: column;
+            gap: 32px;
+        }
+
+        .home-category-title {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            color: #1a192b;
+            border-bottom: 2px solid #1a192b;
+            padding-bottom: 8px;
+        }
+
+        .home-examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 16px;
+        }
+
+        .home-example-card {
+            display: block;
+            padding: 20px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .home-example-card:hover {
+            border-color: #ff0072;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .home-example-name {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            color: #1a192b;
+        }
+
+        .home-example-desc {
+            margin: 0;
+            font-size: 13px;
+            color: #666;
+            line-height: 1.4;
+        }
+
+        /* 404 Page */
+        .not-found-page {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            text-align: center;
+        }
+
+        .not-found-page h1 {
+            font-size: 72px;
+            margin: 0;
+            color: #1a192b;
+        }
+
+        .not-found-page p {
+            font-size: 18px;
+            color: #666;
+            margin: 16px 0;
+        }
+
+        .not-found-link {
+            color: #ff0072;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .not-found-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Placeholder Example */
+        .placeholder-example {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+        }
+
+        .placeholder-content {
+            text-align: center;
+            max-width: 400px;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .placeholder-content h2 {
+            margin: 0 0 12px 0;
+            color: #1a192b;
+        }
+
+        .placeholder-content p {
+            margin: 0 0 8px 0;
+            color: #666;
+        }
+
+        .placeholder-note {
+            color: #ff0072 !important;
+            font-weight: 600;
+        }
+
+        /* Responsive Sidebar */
+        @media (max-width: 768px) {
+            .nav-sidebar {
+                width: 60px;
+                min-width: 60px;
+            }
+
+            .nav-header, .nav-category-name, .nav-category-count, .nav-item-name, .nav-search {
+                display: none;
+            }
+
+            .nav-category-header {
+                justify-content: center;
+                padding: 12px;
+            }
+
+            .nav-items {
+                padding-left: 0;
+            }
+
+            .nav-item {
+                padding: 12px;
+                text-align: center;
+                border-left: none;
+                border-bottom: 2px solid transparent;
+            }
+
+            .nav-item.active, .nav-item[aria-current="page"] {
+                border-left: none;
+                border-bottom-color: #ff0072;
+            }
+        }
+
+        /* XY Flow CSS Variables (matching React Flow exactly) */
+        .xyflow, .leptos-flow, .svelte-flow {
+            --xy-edge-stroke-default: #b1b1b7;
+            --xy-edge-stroke-width-default: 1;
+            --xy-edge-stroke-selected-default: #555;
+            --xy-connectionline-stroke-default: #b1b1b7;
+            --xy-connectionline-stroke-width-default: 1;
+            --xy-background-color-default: #fff;
+            --xy-background-pattern-color-default: #91919a;
+            --xy-node-color-default: inherit;
+            --xy-node-border-default: 1px solid #1a192b;
+            --xy-node-background-color-default: #fff;
+            --xy-node-boxshadow-hover-default: 0 1px 4px 1px rgba(0, 0, 0, 0.08);
+            --xy-node-boxshadow-selected-default: 0 0 0 0.5px #1a192b;
+            --xy-node-border-radius-default: 3px;
+            --xy-handle-background-color-default: #1a192b;
+            --xy-handle-border-color-default: #fff;
+            --xy-controls-button-background-color-default: #fefefe;
+            --xy-controls-button-background-color-hover-default: #f4f4f4;
+            --xy-controls-button-color-default: inherit;
+            --xy-controls-button-border-color-default: #eee;
+            --xy-minimap-background-color-default: #fff;
+            --xy-minimap-mask-background-color-default: rgb(240, 240, 240, 0.6);
+            --xy-minimap-mask-stroke-color-default: transparent;
+            --xy-minimap-mask-stroke-width-default: 1;
+            --xy-minimap-node-background-color-default: #e2e2e2;
+            --xy-minimap-node-stroke-color-default: transparent;
+            --xy-minimap-node-stroke-width-default: 2;
+
+            background-color: var(--xy-background-color, var(--xy-background-color-default));
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Viewport */
+        .xyflow__viewport {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform-origin: 0 0;
+            z-index: 2;
+            pointer-events: all;
+        }
+
+        /* Edge styles */
+        .xyflow__edges {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: visible;
+            z-index: 0;
+        }
+
+        .xyflow__edge-path {
+            stroke: var(--xy-edge-stroke, var(--xy-edge-stroke-default));
+            stroke-width: var(--xy-edge-stroke-width, var(--xy-edge-stroke-width-default));
+            fill: none;
+        }
+
+        .xyflow__edge.selected .xyflow__edge-path {
+            stroke: var(--xy-edge-stroke-selected, var(--xy-edge-stroke-selected-default));
+        }
+
+        .xyflow__edge.animated path {
+            stroke-dasharray: 5;
+            animation: dashdraw 0.5s linear infinite;
+        }
+
+        @keyframes dashdraw {
+            from { stroke-dashoffset: 10; }
+        }
+
+        .xyflow__edge {
+            pointer-events: visibleStroke;
+            cursor: pointer;
+        }
+
+        /* Connection line styles */
+        .xyflow__connection-path {
+            stroke: var(--xy-connectionline-stroke, var(--xy-connectionline-stroke-default));
+            stroke-width: var(--xy-connectionline-stroke-width, var(--xy-connectionline-stroke-width-default));
+            fill: none;
+        }
+
+        /* Handle styles */
+        .xyflow__handle {
+            position: absolute;
+            pointer-events: all;
+            min-width: 5px;
+            min-height: 5px;
+            width: 6px;
+            height: 6px;
+            background-color: var(--xy-handle-background-color, var(--xy-handle-background-color-default));
+            border: 1px solid var(--xy-handle-border-color, var(--xy-handle-border-color-default));
+            border-radius: 100%;
+            cursor: crosshair;
+        }
+
+        .xyflow__handle-top {
+            top: 0;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .xyflow__handle-right {
+            top: 50%;
+            right: 0;
+            transform: translate(50%, -50%);
+        }
+
+        .xyflow__handle-bottom {
+            bottom: 0;
+            left: 50%;
+            transform: translate(-50%, 50%);
+        }
+
+        .xyflow__handle-left {
+            top: 50%;
+            left: 0;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Node styles */
+        .xyflow__node {
+            position: absolute;
+            user-select: none;
+            pointer-events: all;
+            transform-origin: 0 0;
+            box-sizing: border-box;
+            cursor: grab;
+            z-index: 3;
+        }
+
+        .xyflow__node.dragging {
+            cursor: grabbing;
+            z-index: 1000;
+        }
+
+        .xyflow__node-default,
+        .xyflow__node-input,
+        .xyflow__node-output {
+            padding: 10px;
+            border-radius: var(--xy-node-border-radius, var(--xy-node-border-radius-default));
+            width: 150px;
+            font-size: 12px;
+            color: var(--xy-node-color, var(--xy-node-color-default));
+            text-align: center;
+            border: var(--xy-node-border, var(--xy-node-border-default));
+            background-color: var(--xy-node-background-color, var(--xy-node-background-color-default));
+            position: relative;
+        }
+
+        .xyflow__node-default:hover,
+        .xyflow__node-input:hover,
+        .xyflow__node-output:hover {
+            box-shadow: var(--xy-node-boxshadow-hover, var(--xy-node-boxshadow-hover-default));
+        }
+
+        .xyflow__node-default.selected,
+        .xyflow__node-input.selected,
+        .xyflow__node-output.selected {
+            box-shadow: var(--xy-node-boxshadow-selected, var(--xy-node-boxshadow-selected-default));
+        }
+
+        /* Light/dark class toggles */
+        .light {
+            background: #fff !important;
+        }
+
+        .dark {
+            background: #557 !important;
+            color: #f8f8f8;
+        }
+
+        /* Background pattern */
+        .xyflow__background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        .xyflow__background-pattern {
+            fill: var(--xy-background-pattern-color, var(--xy-background-pattern-color-default));
+        }
+
+        .xyflow__background-pattern.lines,
+        .xyflow__background-pattern.cross {
+            stroke: var(--xy-background-pattern-color, var(--xy-background-pattern-color-default));
+            fill: none;
+        }
+
+        /* Panel styles */
+        .xyflow__panel {
+            position: absolute;
+            z-index: 5;
+            margin: 15px;
+        }
+
+        .xyflow__panel.top { top: 0; }
+        .xyflow__panel.bottom { bottom: 0; }
+        .xyflow__panel.left { left: 0; }
+        .xyflow__panel.right { right: 0; }
+        .xyflow__panel.center {
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .xyflow__panel button {
+            margin: 2px;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+            border: 1px solid #ddd;
+            background: #fff;
+            border-radius: 3px;
+        }
+
+        .xyflow__panel button:hover {
+            background: #f0f0f0;
+        }
+
+        /* Controls styles */
+        .xyflow__controls {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .xyflow__controls.horizontal {
+            flex-direction: row;
+        }
+
+        .xyflow__controls-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            padding: 4px;
+            border: none;
+            background-color: var(--xy-controls-button-background-color, var(--xy-controls-button-background-color-default));
+            border-bottom: 1px solid var(--xy-controls-button-border-color, var(--xy-controls-button-border-color-default));
+            color: var(--xy-controls-button-color, var(--xy-controls-button-color-default));
+            cursor: pointer;
+        }
+
+        .xyflow__controls-button:hover {
+            background-color: var(--xy-controls-button-background-color-hover, var(--xy-controls-button-background-color-hover-default));
+        }
+
+        .xyflow__controls-button:first-child {
+            border-radius: 5px 5px 0 0;
+        }
+
+        .xyflow__controls-button:last-child {
+            border-bottom: none;
+            border-radius: 0 0 5px 5px;
+        }
+
+        .xyflow__controls-button svg {
+            width: 12px;
+            height: 12px;
+            fill: currentColor;
+        }
+
+        .xyflow__controls-button:disabled {
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        /* MiniMap styles */
+        .xyflow__minimap {
+            position: absolute;
+            z-index: 5;
+            background-color: var(--xy-minimap-background-color, var(--xy-minimap-background-color-default));
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .xyflow__minimap svg {
+            display: block;
+        }
+
+        .xyflow__minimap-mask {
+            fill: var(--xy-minimap-mask-background-color, var(--xy-minimap-mask-background-color-default));
+            stroke: var(--xy-minimap-mask-stroke-color, var(--xy-minimap-mask-stroke-color-default));
+            stroke-width: var(--xy-minimap-mask-stroke-width, var(--xy-minimap-mask-stroke-width-default));
+        }
+
+        .xyflow__minimap-node {
+            fill: var(--xy-minimap-node-background-color, var(--xy-minimap-node-background-color-default));
+            stroke: var(--xy-minimap-node-stroke-color, var(--xy-minimap-node-stroke-color-default));
+            stroke-width: var(--xy-minimap-node-stroke-width, var(--xy-minimap-node-stroke-width-default));
+        }
+
+        /* Attribution */
+        .xyflow__attribution {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            font-size: 10px;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 2px 4px;
+            z-index: 1000;
+        }
+
+        .xyflow__attribution a {
+            color: #999;
+            text-decoration: none;
+        }
+
+        /* Source Code Viewer Styles */
+        .source-code-viewer {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 10;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .source-toggle-button {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #1a192b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .source-toggle-button:hover {
+            background: #2d2b42;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .source-toggle-icon {
+            width: 16px;
+            height: 16px;
+        }
+
+        .source-code-panel {
+            position: absolute;
+            top: 45px;
+            right: 0;
+            width: min(700px, calc(100vw - 320px));
+            max-height: calc(100vh - 120px);
+            background: #1e1e2e;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            animation: slideIn 0.2s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .source-code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            background: #2d2b42;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .source-code-title {
+            color: #cdd6f4;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .source-copy-button {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #cdd6f4;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .source-copy-button:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .source-copy-icon {
+            width: 14px;
+            height: 14px;
+        }
+
+        .source-code-content {
+            margin: 0;
+            padding: 16px;
+            overflow: auto;
+            max-height: calc(100vh - 200px);
+            font-family: 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            color: #cdd6f4;
+            background: #1e1e2e;
+            tab-size: 4;
+        }
+
+        .source-code-content code {
+            display: block;
+            white-space: pre;
+        }
+
+        /* Syntax highlighting colors (Catppuccin Mocha inspired) */
+        .hl-keyword {
+            color: #cba6f7; /* mauve */
+            font-weight: 500;
+        }
+
+        .hl-type {
+            color: #f9e2af; /* yellow */
+        }
+
+        .hl-string {
+            color: #a6e3a1; /* green */
+        }
+
+        .hl-number {
+            color: #fab387; /* peach */
+        }
+
+        .hl-comment {
+            color: #6c7086; /* overlay0 */
+            font-style: italic;
+        }
+
+        .hl-macro {
+            color: #89dceb; /* sky */
+        }
+
+        .hl-attribute {
+            color: #f38ba8; /* red */
+        }
+
+        .hl-lifetime {
+            color: #f5c2e7; /* pink */
+        }
+
+        /* Mobile responsiveness for source viewer */
+        @media (max-width: 768px) {
+            .source-code-viewer {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+</body>
+</html>
+

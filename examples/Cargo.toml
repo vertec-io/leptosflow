@@ -1,0 +1,24 @@
+[package]
+name = "xyflow-leptos-examples"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "xyflow-leptos-examples"
+path = "src/main.rs"
+
+[dependencies]
+leptos = { version = "0.8", features = ["csr"] }
+leptos_router = { version = "0.8" }
+reactive_stores = "0.3"
+xyflow-leptos = { path = "../xyflow-leptos" }
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+opt-level = 'z'
+lto = true
+codegen-units = 1
+

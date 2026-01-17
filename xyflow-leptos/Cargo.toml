@@ -1,0 +1,64 @@
+[package]
+name = "xyflow-leptos"
+version = "0.1.0"
+edition = "2024"
+authors = ["Arturo Pino <arturo.rpino@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/R2rho/leptosflow"
+description = "A highly customizable Rust/WASM library for building node-based editors and interactive flow diagrams"
+readme = "README.md"
+
+[dependencies]
+leptos = { version = "0.8", features = ["csr"] }
+leptos_meta = { version = "0.8", optional = true }
+leptos_router = { version = "0.8", optional = true }
+leptos-use = { version = "0.16", default-features = false }
+web-sys = { version = "0.3", features = [
+    "DomRect", "ResizeObserver", "ResizeObserverEntry", "ResizeObserverOptions",
+    "ResizeObserverBoxOptions", "Document", "Window", "Element", "HtmlElement",
+    "SvgElement", "PointerEvent", "Touch", "TouchList", "KeyboardEvent",
+    "WheelEvent", "EventTarget", "Navigator", "Storage", "CustomEventInit",
+    "HtmlDocument", "VisibilityState", "EventListenerOptions"
+] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+uuid = { version = "1", features = ["v4", "serde", "js"] }
+paste = "1"
+lazy_static = "1"
+send_wrapper = "0.6"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[features]
+default = ["csr"]
+csr = []
+ssr = []
+with_ui_components = []
+with_utils = []
+
+[[example]]
+name = "basic"
+path = "examples/basic.rs"
+
+[[example]]
+name = "connections"
+path = "examples/connections.rs"
+
+[[bench]]
+name = "render_performance"
+harness = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

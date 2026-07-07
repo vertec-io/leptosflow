@@ -15,7 +15,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
 use shared::{get_all_examples, PlaceholderExample};
-use examples::basic::{BasicExample, EmptyExample, DefaultNodesExample, SwitchExample};
+use examples::basic::{BasicExample, EmptyExample, DefaultNodesExample, SwitchExample, HardeningExample};
 use examples::nodes::{CustomNodesExample, DefaultNodeOverwriteExample, NodeResizerExample, DragHandleExample, MovingHandlesExample, DetachedHandleExample, NodeTypeChangeExample, NodeTypesObjectChangeExample, UpdateNodeExample, UseUpdateNodeInternalsExample, BrokenNodesExample, NodeToolbarExample, UseNodesInitExample};
 use examples::edges::{EdgeTypesExample, DefaultEdgeOverwriteExample, CustomEdgesExample, CustomConnectionLineExample, FloatingEdgesExample, EasyConnectExample, EdgeRendererExample, EdgeToolbarExample, EdgeRoutingExample};
 use examples::connections::{ValidationExample, UseConnectionExample, CancelConnectionExample, ReconnectEdgeExample, AddNodeOnEdgeDropExample};
@@ -314,6 +314,7 @@ fn App() -> impl IntoView {
 
                     // Basic examples
                     <Route path=path!("examples/basic") view=BasicExample />
+                    <Route path=path!("examples/hardening") view=HardeningExample />
                     <Route path=path!("examples/empty") view=EmptyExample />
                     <Route path=path!("examples/default-nodes") view=DefaultNodesExample />
                     <Route path=path!("examples/switch") view=SwitchExample />

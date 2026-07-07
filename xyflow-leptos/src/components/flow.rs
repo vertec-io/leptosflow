@@ -34,12 +34,22 @@ use crate::store::FlowStore;
 /// ```
 #[component]
 pub fn SvelteFlow(
-    nodes: RwSignal<Vec<Node>>,
-    edges: RwSignal<Vec<Edge>>,
+    /// Node signal (ignored when `store` is provided)
+    #[prop(optional)] nodes: Option<RwSignal<Vec<Node>>>,
+    /// Edge signal (ignored when `store` is provided)
+    #[prop(optional)] edges: Option<RwSignal<Vec<Edge>>>,
+    /// Pre-built store to use instead of creating one from the signals.
+    /// Lets the consumer keep a handle for `fit_view`, drag-end callbacks, etc.
+    #[prop(optional)] store: Option<FlowStore>,
     #[prop(optional)] children: Option<Children>,
 ) -> impl IntoView {
-    // Create the store from the signals
-    let store = FlowStore::from_signals(nodes, edges);
+    // Use the provided store, or create one from the signals
+    let store = store.unwrap_or_else(|| {
+        FlowStore::from_signals(
+            nodes.unwrap_or_else(|| RwSignal::new(Vec::new())),
+            edges.unwrap_or_else(|| RwSignal::new(Vec::new())),
+        )
+    });
 
     // Provide the store to child components
     provide_context(store);

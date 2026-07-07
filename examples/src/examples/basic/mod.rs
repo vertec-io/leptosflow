@@ -7,11 +7,13 @@
 //! - Switch: Swap between different flow configurations at runtime
 
 mod basic;
+mod hardening;
 mod empty;
 mod default_nodes;
 mod switch;
 
 pub use basic::BasicExample;
+pub use hardening::HardeningExample;
 pub use empty::EmptyExample;
 pub use default_nodes::DefaultNodesExample;
 pub use switch::SwitchExample;

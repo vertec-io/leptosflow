@@ -131,6 +131,9 @@ fn EdgeComponent(
                 if edge.hidden {
                     classes.push("hidden");
                 }
+                if let Some(ref class_name) = edge.class_name {
+                    classes.push(class_name);
+                }
             }
             classes.join(" ")
         }

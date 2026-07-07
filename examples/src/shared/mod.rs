@@ -24,6 +24,7 @@ pub fn get_all_examples() -> Vec<(&'static str, Vec<ExampleMeta>)> {
     vec![
         ("Basic", vec![
             ExampleMeta { id: "basic", name: "Basic", description: "Draggable nodes, pan/zoom, background, minimap, controls", category: "Basic" },
+            ExampleMeta { id: "hardening", name: "Hardening", description: "Custom port nodes, measured handle anchors, pointer-capture drag, fit-view", category: "Basic" },
             ExampleMeta { id: "empty", name: "Empty", description: "Minimal starting point with empty flow canvas", category: "Basic" },
             ExampleMeta { id: "default-nodes", name: "Default Nodes", description: "Input, default, and output node types", category: "Basic" },
             ExampleMeta { id: "switch", name: "Switch", description: "Switch between different flow configurations at runtime", category: "Basic" },

@@ -181,6 +181,13 @@ pub fn Handle(
         is_valid_connection,
     );
 
+    // Keep pointerdown on a handle from starting a node drag (the node's
+    // drag handler calls prevent_default, which would also suppress the
+    // compatibility mousedown this handle's connection handler listens for).
+    let on_pointer_down = |ev: leptos::ev::PointerEvent| {
+        ev.stop_propagation();
+    };
+
     // Only attach handlers if connectable
     if is_connectable_start {
         view! {
@@ -195,6 +202,7 @@ pub fn Handle(
                 class:connectable=is_connectable
                 class:connectablestart=is_connectable_start
                 class:connectableend=is_connectable_end
+                on:pointerdown=on_pointer_down
                 on:mousedown=on_mouse_down
             >
                 {children.map(|c| c())}
@@ -213,6 +221,7 @@ pub fn Handle(
                 class:connectable=is_connectable
                 class:connectablestart=is_connectable_start
                 class:connectableend=is_connectable_end
+                on:pointerdown=on_pointer_down
             >
                 {children.map(|c| c())}
             </div>

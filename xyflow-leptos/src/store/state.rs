@@ -60,6 +60,10 @@ pub struct FlowState {
 
     /// NodeRef to the flow container element (for coordinate conversion)
     pub container_ref: NodeRef<html::Div>,
+
+    /// Called when a node drag finishes, with `(node_id, final_position)`.
+    /// Consumers register this to persist node positions.
+    pub on_node_drag_end: RwSignal<Option<Callback<(String, Position)>>>,
 }
 
 impl FlowState {
@@ -77,6 +81,7 @@ impl FlowState {
             pan_on_drag: RwSignal::new(true),
             connection_in_progress: RwSignal::new(None),
             container_ref: NodeRef::new(),
+            on_node_drag_end: RwSignal::new(None),
         }
     }
 
@@ -94,6 +99,7 @@ impl FlowState {
             pan_on_drag: RwSignal::new(true),
             connection_in_progress: RwSignal::new(None),
             container_ref: NodeRef::new(),
+            on_node_drag_end: RwSignal::new(None),
         }
     }
 }

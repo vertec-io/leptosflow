@@ -334,6 +334,19 @@ impl FlowStore {
         }
     }
 
+    // ===== Drag Callbacks =====
+
+    /// Register a callback fired when a node drag finishes, with
+    /// `(node_id, final_position)`. Use this to persist node positions.
+    pub fn set_on_node_drag_end(&self, callback: Callback<(String, Position)>) {
+        self.state.on_node_drag_end.set(Some(callback));
+    }
+
+    /// Remove the drag-end callback.
+    pub fn clear_on_node_drag_end(&self) {
+        self.state.on_node_drag_end.set(None);
+    }
+
     // ===== Connection Actions =====
 
     /// Start a connection from a handle

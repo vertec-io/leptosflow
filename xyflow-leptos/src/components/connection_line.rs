@@ -23,16 +23,6 @@ pub fn ConnectionLine() -> impl IntoView {
     view! {
         {move || {
             if let Some(conn) = connection() {
-                // Log connection coordinates for debugging
-                #[cfg(debug_assertions)]
-                {
-                    web_sys::console::log_1(&format!(
-                        "ConnectionLine: from=({:.1}, {:.1}) to=({:.1}, {:.1})",
-                        conn.from_position.x, conn.from_position.y,
-                        conn.to_position.x, conn.to_position.y
-                    ).into());
-                }
-
                 // Calculate path from source to current mouse position
                 let path = generate_edge_path(
                     conn.from_position,

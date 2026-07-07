@@ -44,12 +44,6 @@ pub fn use_connection_handlers(
         ev.prevent_default();
         ev.stop_propagation();
 
-        // Debug: Log that handle mousedown was triggered
-        web_sys::console::log_1(&format!(
-            "Handle mousedown: node={}, handle={:?}, type={:?}",
-            node_id, handle_id, handle_type
-        ).into());
-
         let viewport = store.get_viewport_untracked();
         let container_ref = store.state.container_ref;
 
@@ -87,24 +81,12 @@ pub fn use_connection_handlers(
             )
         };
 
-        web_sys::console::log_1(&format!(
-            "Starting connection at position: ({:.1}, {:.1})",
-            handle_center_pos.x, handle_center_pos.y
-        ).into());
-
         store.start_connection(
             node_id.clone(),
             handle_id.clone(),
             handle_type,
             handle_center_pos,
         );
-
-        // Verify connection was started
-        let conn = store.state.connection_in_progress.get_untracked();
-        web_sys::console::log_1(&format!(
-            "Connection after start: {:?}",
-            conn.is_some()
-        ).into());
     };
 
     on_mouse_down

@@ -26,6 +26,20 @@
 //! }
 //! ```
 
+/// Base stylesheet for the classes emitted by the components.
+///
+/// All colors route through `--xy-*` CSS variables with fallbacks, so a host
+/// application can retheme by defining those variables without overriding
+/// selectors. Inject it once per document, e.g. with `leptos_meta`:
+///
+/// ```ignore
+/// use leptos_meta::Style;
+/// view! { <Style>{xyflow_leptos::STYLES}</Style> }
+/// ```
+///
+/// or serve `xyflow-leptos/styles.css` as a static asset.
+pub const STYLES: &str = include_str!("../styles.css");
+
 pub mod types;
 pub mod store;
 pub mod hooks;

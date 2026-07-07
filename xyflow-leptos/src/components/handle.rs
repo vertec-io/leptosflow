@@ -1,8 +1,12 @@
 //! Handle component for node connection points
 
 use leptos::prelude::*;
+use leptos::html;
+use leptos::wasm_bindgen::{closure::Closure, JsCast};
+use crate::hooks::use_flow_store;
 use crate::types::{HandleType, ConnectionMode, IsValidConnection};
 use crate::events::use_connection_handlers;
+use crate::utils::dom::measure_handle_bound;
 
 /// Position of a handle on a node
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,8 +128,47 @@ pub fn Handle(
     // Build data attributes for handle identification
     let handle_id_attr = id.clone().unwrap_or_else(|| "null".to_string());
 
-    // For now, use a placeholder position - in a full implementation,
-    // this would be calculated from the DOM element's actual position
+    let store = use_flow_store();
+    let handle_ref: NodeRef<html::Div> = NodeRef::new();
+
+    // Measure this handle relative to its parent `.xyflow__node` element once
+    // it is mounted, and register the bound in the store. Bounds are stored
+    // node-relative, so they remain correct while the node is dragged and are
+    // zoom-invariant. EdgeRenderer picks them up keyed by (node_id, handle_id).
+    {
+        let node_id = node_id.clone();
+        Effect::new(move |_| {
+            let Some(element) = handle_ref.get() else {
+                return;
+            };
+            let store = store;
+            let node_id = node_id.clone();
+            // Wait one frame so layout (and stylesheets) have settled.
+            let closure = Closure::once(move || {
+                let zoom = store.get_viewport_untracked().zoom;
+                if let Some(bound) = measure_handle_bound(&element, zoom) {
+                    store.register_handle(&node_id, bound);
+                }
+            });
+            if let Some(window) = web_sys::window() {
+                let _ = window.request_animation_frame(closure.as_ref().unchecked_ref());
+            }
+            closure.forget();
+        });
+    }
+
+    // Drop the registered bound when the handle unmounts, so edges do not
+    // anchor to handles that no longer exist.
+    {
+        let node_id = node_id.clone();
+        let handle_id = id.clone();
+        on_cleanup(move || {
+            store.unregister_handle(&node_id, handle_id.as_deref(), r#type);
+        });
+    }
+
+    // Placeholder start position; the connection handler measures the actual
+    // handle center from the DOM on mousedown.
     let handle_pos = crate::types::Position::new(0.0, 0.0);
 
     // Create connection handler
@@ -142,6 +185,7 @@ pub fn Handle(
     if is_connectable_start {
         view! {
             <div
+                node_ref=handle_ref
                 class=classes
                 data-handleid=handle_id_attr
                 data-handlepos=position_str
@@ -159,6 +203,7 @@ pub fn Handle(
     } else {
         view! {
             <div
+                node_ref=handle_ref
                 class=classes
                 data-handleid=handle_id_attr
                 data-handlepos=position_str

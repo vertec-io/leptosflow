@@ -91,6 +91,54 @@ pub fn get_handle_bounds(
     handles
 }
 
+/// Measure a single handle element relative to its parent node element.
+///
+/// Walks up from the handle to the closest `.xyflow__node` ancestor and
+/// returns a [`HandleBound`] with coordinates relative to the node's
+/// top-left corner in flow units (i.e. divided by the current zoom).
+///
+/// Returns `None` if the handle is not inside a `.xyflow__node` element.
+pub fn measure_handle_bound(handle_element: &HtmlElement, zoom: f64) -> Option<HandleBound> {
+    let node_element = handle_element.closest(".xyflow__node").ok().flatten()?;
+
+    let handle_id = handle_element
+        .get_attribute("data-handleid")
+        .and_then(|id| if id == "null" { None } else { Some(id) });
+
+    let handle_type = match handle_element.get_attribute("data-handletype").as_deref() {
+        Some("target") => HandleType::Target,
+        _ => HandleType::Source,
+    };
+
+    let position = match handle_element
+        .get_attribute("data-handlepos")
+        .unwrap_or_else(|| "top".to_string())
+        .as_str()
+    {
+        "right" => HandleBoundPosition::Right,
+        "bottom" => HandleBoundPosition::Bottom,
+        "left" => HandleBoundPosition::Left,
+        _ => HandleBoundPosition::Top,
+    };
+
+    let node_rect = node_element.get_bounding_client_rect();
+    let handle_rect = handle_element.get_bounding_client_rect();
+
+    // Zoom scales both rects equally, so dividing by it yields
+    // zoom-invariant node-relative flow coordinates.
+    let zoom = if zoom > 0.0 { zoom } else { 1.0 };
+
+    Some(HandleBound {
+        id: handle_id,
+        handle_type,
+        position,
+        x: (handle_rect.left() - node_rect.left()) / zoom,
+        y: (handle_rect.top() - node_rect.top()) / zoom,
+        width: handle_rect.width() / zoom,
+        height: handle_rect.height() / zoom,
+    })
+}
+
 /// Update node internals by measuring handles
 ///
 /// This is called when a node is resized or when handles change

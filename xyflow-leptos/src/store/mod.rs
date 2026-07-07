@@ -120,6 +120,55 @@ impl FlowStore {
         found
     }
 
+    // ===== Handle Registration =====
+
+    /// Register (or refresh) a measured handle bound on a node.
+    ///
+    /// Called by the `Handle` component after measuring itself in the DOM.
+    /// Bounds are stored relative to the node's top-left corner, so they stay
+    /// valid while the node is dragged; `EdgeRenderer` resolves the absolute
+    /// anchor as `node.position + bound.center()`.
+    pub fn register_handle(&self, node_id: &str, bound: crate::types::HandleBound) {
+        self.state.nodes.update(|nodes| {
+            if let Some(node) = nodes.iter_mut().find(|n| n.id == node_id) {
+                let bounds = node
+                    .internals
+                    .handle_bounds
+                    .get_or_insert_with(crate::types::HandleBounds::new);
+                let list = match bound.handle_type {
+                    crate::types::HandleType::Source => &mut bounds.source,
+                    crate::types::HandleType::Target => &mut bounds.target,
+                };
+                if let Some(existing) = list.iter_mut().find(|h| h.id == bound.id) {
+                    *existing = bound;
+                } else {
+                    list.push(bound);
+                }
+                node.internals.measured = true;
+            }
+        });
+    }
+
+    /// Remove a previously registered handle bound (called on handle unmount).
+    pub fn unregister_handle(
+        &self,
+        node_id: &str,
+        handle_id: Option<&str>,
+        handle_type: crate::types::HandleType,
+    ) {
+        self.state.nodes.update(|nodes| {
+            if let Some(node) = nodes.iter_mut().find(|n| n.id == node_id) {
+                if let Some(bounds) = node.internals.handle_bounds.as_mut() {
+                    let list = match handle_type {
+                        crate::types::HandleType::Source => &mut bounds.source,
+                        crate::types::HandleType::Target => &mut bounds.target,
+                    };
+                    list.retain(|h| h.id.as_deref() != handle_id);
+                }
+            }
+        });
+    }
+
     // ===== Edge Actions =====
 
     /// Set all edges

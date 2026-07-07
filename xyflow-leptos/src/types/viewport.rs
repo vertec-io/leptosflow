@@ -51,20 +51,25 @@ impl Viewport {
         format!("translate({} {}) scale({})", self.x, self.y, self.zoom)
     }
 
-    /// Convert screen coordinates to viewport coordinates
-    /// Takes into account viewport pan and zoom
+    /// Convert screen coordinates to flow coordinates
+    ///
+    /// Inverts the CSS transform `translate(x, y) scale(zoom)` applied by the
+    /// viewport element: `flow = (screen - pan) / zoom`.
     pub fn screen_to_viewport(&self, screen_x: f64, screen_y: f64) -> (f64, f64) {
         (
-            (screen_x / self.zoom) - self.x,
-            (screen_y / self.zoom) - self.y,
+            (screen_x - self.x) / self.zoom,
+            (screen_y - self.y) / self.zoom,
         )
     }
 
-    /// Convert viewport coordinates to screen coordinates
+    /// Convert flow coordinates to screen coordinates
+    ///
+    /// Matches the CSS transform `translate(x, y) scale(zoom)`:
+    /// `screen = flow * zoom + pan`.
     pub fn viewport_to_screen(&self, viewport_x: f64, viewport_y: f64) -> (f64, f64) {
         (
-            (viewport_x + self.x) * self.zoom,
-            (viewport_y + self.y) * self.zoom,
+            viewport_x * self.zoom + self.x,
+            viewport_y * self.zoom + self.y,
         )
     }
 

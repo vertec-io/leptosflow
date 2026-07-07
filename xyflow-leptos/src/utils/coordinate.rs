@@ -9,6 +9,9 @@ pub struct CoordinateSystem;
 
 impl CoordinateSystem {
     /// Convert screen coordinates to flow coordinates
+    ///
+    /// The viewport applies the CSS transform `translate(x, y) scale(zoom)`,
+    /// i.e. `screen = flow * zoom + pan + container_origin`. This inverts it.
     pub fn screen_to_flow(
         screen_x: f64,
         screen_y: f64,
@@ -16,12 +19,15 @@ impl CoordinateSystem {
         svg_rect_x: f64,
         svg_rect_y: f64,
     ) -> (f64, f64) {
-        let adjusted_x = (screen_x - svg_rect_x) / viewport.zoom - viewport.x;
-        let adjusted_y = (screen_y - svg_rect_y) / viewport.zoom - viewport.y;
+        let adjusted_x = (screen_x - svg_rect_x - viewport.x) / viewport.zoom;
+        let adjusted_y = (screen_y - svg_rect_y - viewport.y) / viewport.zoom;
         (adjusted_x, adjusted_y)
     }
 
     /// Convert flow coordinates to screen coordinates
+    ///
+    /// Matches the CSS transform `translate(x, y) scale(zoom)` applied by the
+    /// viewport: `screen = flow * zoom + pan + container_origin`.
     pub fn flow_to_screen(
         flow_x: f64,
         flow_y: f64,
@@ -29,8 +35,8 @@ impl CoordinateSystem {
         svg_rect_x: f64,
         svg_rect_y: f64,
     ) -> (f64, f64) {
-        let screen_x = ((flow_x + viewport.x) * viewport.zoom) + svg_rect_x;
-        let screen_y = ((flow_y + viewport.y) * viewport.zoom) + svg_rect_y;
+        let screen_x = flow_x * viewport.zoom + viewport.x + svg_rect_x;
+        let screen_y = flow_y * viewport.zoom + viewport.y + svg_rect_y;
         (screen_x, screen_y)
     }
 

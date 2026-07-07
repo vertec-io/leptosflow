@@ -119,12 +119,15 @@ impl Node {
     }
 
     /// Get the bounding box of the node
+    ///
+    /// Unmeasured nodes fall back to the default footprint (150 x 40),
+    /// consistent with the edge renderer and fit-view.
     pub fn bounds(&self) -> Bounds {
         Bounds {
             x: self.position.x,
             y: self.position.y,
-            width: self.width.unwrap_or(100.0),
-            height: self.height.unwrap_or(50.0),
+            width: self.width.unwrap_or(150.0),
+            height: self.height.unwrap_or(40.0),
         }
     }
 

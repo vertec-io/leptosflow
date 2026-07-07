@@ -298,6 +298,42 @@ impl FlowStore {
         });
     }
 
+    /// Fit all (visible) nodes into the container with 10% padding.
+    ///
+    /// See [`crate::utils::fit_view::fit_view_with_options`] for custom padding
+    /// or zoom clamps.
+    pub fn fit_view(&self) {
+        crate::utils::fit_view::fit_view(self);
+    }
+
+    /// Frame an arbitrary flow-coordinate rectangle in the container.
+    pub fn fit_bounds(&self, bounds: crate::types::Bounds) {
+        crate::utils::fit_view::fit_bounds_with_options(
+            self,
+            bounds,
+            crate::utils::fit_view::FitViewOptions::default(),
+        );
+    }
+
+    /// Zoom the viewport to frame the currently selected nodes.
+    ///
+    /// Falls back to fitting all nodes when nothing is selected.
+    pub fn zoom_to_selection(&self) {
+        let selected = self.state.selected_nodes.get_untracked();
+        if selected.is_empty() {
+            self.fit_view();
+            return;
+        }
+        let nodes: Vec<crate::types::Node> = self
+            .get_nodes_untracked()
+            .into_iter()
+            .filter(|n| selected.contains(&n.id))
+            .collect();
+        if let Some(bounds) = crate::utils::fit_view::nodes_bounds(&nodes) {
+            self.fit_bounds(bounds);
+        }
+    }
+
     // ===== Connection Actions =====
 
     /// Start a connection from a handle

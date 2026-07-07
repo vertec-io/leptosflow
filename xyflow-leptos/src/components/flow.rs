@@ -45,7 +45,7 @@ pub fn SvelteFlow(
     provide_context(store);
 
     view! {
-        <div class="svelte-flow">
+        <div class="xyflow svelte-flow" node_ref=store.state.container_ref>
             {children.map(|children| children())}
         </div>
     }

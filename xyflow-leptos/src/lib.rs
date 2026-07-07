@@ -45,3 +45,4 @@ pub use components::{
 };
 pub use error::{FlowError, Result};
 pub use events::{use_connection_handlers, calculate_handle_position};
+pub use utils::fit_view::{fit_view, fit_view_with_options, fit_bounds_with_options, FitViewOptions};

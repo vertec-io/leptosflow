@@ -146,15 +146,7 @@ pub fn Controls(
                     let store_clone = store;
                     view! {
                         <ControlButton
-                            on_click=move |_| {
-                                // TODO: Implement fit_view in store
-                                // For now, just reset to default zoom
-                                let mut viewport = store_clone.get_viewport();
-                                viewport.zoom = 1.0;
-                                viewport.x = 0.0;
-                                viewport.y = 0.0;
-                                store_clone.set_viewport(viewport);
-                            }
+                            on_click=move |_| store_clone.fit_view()
                             disabled=false
                             title="Fit view".to_string()
                             aria_label="Fit view".to_string()

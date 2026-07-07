@@ -2,15 +2,22 @@
 
 use leptos::prelude::*;
 use crate::hooks::use_flow_store;
-use crate::types::{Node, Position};
-use crate::utils::edge_path::{generate_edge_path, calculate_label_position, EdgePathType};
+use crate::types::{HandleBoundPosition, Node, Position};
+use crate::utils::edge_path::{
+    calculate_label_position_oriented, generate_edge_path_oriented, EdgePathType,
+};
 use crate::components::markers::MarkerDefinitions;
 
-/// Get the handle position for an edge endpoint
+/// Get the anchor position and orientation for an edge endpoint
 ///
-/// If handle bounds are available, uses the exact handle position.
+/// If handle bounds are available (measured from the DOM by the `Handle`
+/// component), uses the exact handle center and its orientation.
 /// Otherwise, falls back to node edge positions based on handle type.
-fn get_handle_position(node: &Node, handle_id: &Option<String>, is_source: bool) -> Position {
+fn get_handle_position(
+    node: &Node,
+    handle_id: &Option<String>,
+    is_source: bool,
+) -> (Position, HandleBoundPosition) {
     let node_pos = &node.position;
     let node_width = node.width.unwrap_or(150.0);
     let node_height = node.height.unwrap_or(40.0);
@@ -28,18 +35,22 @@ fn get_handle_position(node: &Node, handle_id: &Option<String>, is_source: bool)
 
         if let Some(handle) = handle {
             // Handle bounds are relative to node, convert to absolute
-            return handle.center_absolute(node_pos);
+            return (handle.center_absolute(node_pos), handle.position);
         }
     }
 
     // Fallback: use node edge positions based on handle type
     // Source handles are typically at the bottom, target handles at the top
     if is_source {
-        // Bottom center
-        Position::new(node_pos.x + node_width / 2.0, node_pos.y + node_height)
+        (
+            Position::new(node_pos.x + node_width / 2.0, node_pos.y + node_height),
+            HandleBoundPosition::Bottom,
+        )
     } else {
-        // Top center
-        Position::new(node_pos.x + node_width / 2.0, node_pos.y)
+        (
+            Position::new(node_pos.x + node_width / 2.0, node_pos.y),
+            HandleBoundPosition::Top,
+        )
     }
 }
 /// Renders a single edge reactively
@@ -74,8 +85,10 @@ fn EdgeComponent(
             let edge = edges.iter().find(|e| e.id == edge_id);
 
             if let (Some(source), Some(target), Some(edge)) = (source, target, edge) {
-                let source_pos = get_handle_position(source, &edge.source_handle, true);
-                let target_pos = get_handle_position(target, &edge.target_handle, false);
+                let (source_pos, source_orient) =
+                    get_handle_position(source, &edge.source_handle, true);
+                let (target_pos, target_orient) =
+                    get_handle_position(target, &edge.target_handle, false);
 
                 let path_type = match edge.edge_type.as_deref() {
                     Some("straight") => EdgePathType::Straight,
@@ -85,8 +98,12 @@ fn EdgeComponent(
                     _ => EdgePathType::Bezier,
                 };
 
-                let path = generate_edge_path(source_pos, target_pos, path_type);
-                let label_pos = calculate_label_position(source_pos, target_pos, path_type);
+                let path = generate_edge_path_oriented(
+                    source_pos, source_orient, target_pos, target_orient, path_type,
+                );
+                let label_pos = calculate_label_position_oriented(
+                    source_pos, source_orient, target_pos, target_orient, path_type,
+                );
 
                 (path, label_pos.x, label_pos.y)
             } else {

@@ -35,7 +35,7 @@ pub mod error;
 pub mod events;
 
 // Re-export common types and functions
-pub use types::{Node, Edge, Handle as HandleData, Viewport, Position, Change, HandleType, ConnectionMode, Connection};
+pub use types::{Node, Edge, Handle as HandleData, Viewport, Position, Change, HandleType, ConnectionMode, Connection, HandleBound, HandleBounds, HandleBoundPosition};
 pub use store::{FlowStore, FlowState, ConnectionState};
 pub use hooks::{use_flow_store, use_nodes, use_edges, use_viewport};
 pub use components::{

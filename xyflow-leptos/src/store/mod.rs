@@ -221,8 +221,15 @@ impl FlowStore {
     }
 
     /// Clear all node selections
+    ///
+    /// Reads untracked and no-ops when nothing is selected: a tracked read
+    /// followed by a write to the same signal makes any calling effect
+    /// subscribe to and then invalidate itself — an infinite loop.
     pub fn clear_node_selection(&self) {
-        let selected = self.state.selected_nodes.get();
+        let selected = self.state.selected_nodes.get_untracked();
+        if selected.is_empty() {
+            return;
+        }
         for id in selected {
             self.update_node(&id, |node| node.selected = false);
         }
@@ -263,8 +270,14 @@ impl FlowStore {
     }
 
     /// Clear all edge selections
+    ///
+    /// Untracked + empty-guard for the same reason as
+    /// [`clear_node_selection`](Self::clear_node_selection).
     pub fn clear_edge_selection(&self) {
-        let selected = self.state.selected_edges.get();
+        let selected = self.state.selected_edges.get_untracked();
+        if selected.is_empty() {
+            return;
+        }
         self.state.edges.update(|edges| {
             for id in &selected {
                 if let Some(edge) = edges.iter_mut().find(|e| &e.id == id) {
@@ -374,7 +387,7 @@ impl FlowStore {
 
     /// Complete the connection and create an edge
     pub fn complete_connection(&self, target_node: String, target_handle: Option<String>) -> Option<Edge> {
-        let connection = self.state.connection_in_progress.get();
+        let connection = self.state.connection_in_progress.get_untracked();
         self.state.connection_in_progress.set(None);
 
         if let Some(conn) = connection {

@@ -47,6 +47,12 @@
     height: 100%;
     overflow: hidden;
     position: relative;
+    /* The container owns pan/zoom gestures: keep the browser from turning
+     * touches into native scrolling (which cancels pointer events) and keep
+     * pane drags from selecting text. */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* Viewport */
@@ -78,17 +84,33 @@
     cursor: pointer;
 }
 
+/* Visible edge stroke: presentation only. Clicks are handled by the wide
+ * transparent interaction path rendered on top of it. */
 .xyflow__edge-path {
     stroke: var(--xy-edge-stroke, var(--xy-edge-stroke-default));
     stroke-width: var(--xy-edge-stroke-width, var(--xy-edge-stroke-width-default));
     fill: none;
+    pointer-events: none;
+}
+
+/* Invisible wide twin of the visible path that carries pointer events, so
+ * edges are clickable without pixel-perfect hovering. Must never pick up
+ * visible styling: keep edge theming on .xyflow__edge-path only. */
+.xyflow__edge-interaction {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 18;
+    pointer-events: stroke;
+    cursor: pointer;
 }
 
 .xyflow__edge.selected .xyflow__edge-path {
     stroke: var(--xy-edge-stroke-selected, var(--xy-edge-stroke-selected-default));
 }
 
-.xyflow__edge.animated path {
+/* Scoped to the visible path so the interaction path never gets a dash
+ * pattern (dash gaps could create hit-test holes in some engines). */
+.xyflow__edge.animated .xyflow__edge-path {
     stroke-dasharray: 5;
     animation: xyflow-dashdraw 0.5s linear infinite;
 }

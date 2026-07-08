@@ -3,7 +3,6 @@
 use leptos::prelude::*;
 use crate::store::FlowStore;
 use crate::hooks::use_flow_store;
-use crate::events::{use_pan_handlers, use_zoom_handler};
 
 /// The viewport component that wraps all flow content
 ///
@@ -41,19 +40,14 @@ pub fn Viewport(
         )
     };
 
-    // Set up event handlers for pan and zoom
-    let (on_mouse_down, on_mouse_move, on_mouse_up) = use_pan_handlers();
-    let on_wheel = use_zoom_handler();
-
+    // Pan/zoom gestures are handled by the untransformed container that
+    // `SvelteFlow` renders (see `use_wheel_handler` / `use_pane_pan_handlers`).
+    // Handling them here does not work: this element carries the pan/zoom
+    // CSS transform, so it moves and scales away from under the cursor, and
+    // events on the empty pane outside the transformed area never reach it.
+    // Events from inside the viewport bubble up to the container.
     view! {
-        <div
-            class="xyflow__viewport leptos-flow__viewport"
-            style:transform=transform
-            on:mousedown=on_mouse_down
-            on:mousemove=on_mouse_move
-            on:mouseup=on_mouse_up
-            on:wheel=on_wheel
-        >
+        <div class="xyflow__viewport leptos-flow__viewport" style:transform=transform>
             {children.map(|children| children())}
         </div>
     }

@@ -58,5 +58,8 @@ pub use components::{
     EdgeRenderer, NodeRenderer, Viewport, Viewport as FlowViewport, MiniMap,
 };
 pub use error::{FlowError, Result};
-pub use events::{use_connection_handlers, calculate_handle_position};
+pub use events::{
+    use_connection_handlers, calculate_handle_position,
+    use_wheel_handler, use_pane_pan_handlers,
+};
 pub use utils::fit_view::{fit_view, fit_view_with_options, fit_bounds_with_options, FitViewOptions};

@@ -1,8 +1,11 @@
 //! Main SvelteFlow component
 
 use leptos::prelude::*;
+use leptos::wasm_bindgen::JsCast;
+use leptos::wasm_bindgen::prelude::Closure;
 use crate::types::{Node, Edge};
 use crate::store::FlowStore;
+use crate::events::{use_pane_pan_handlers, use_wheel_handler};
 
 /// The main flow component
 ///
@@ -54,8 +57,71 @@ pub fn SvelteFlow(
     // Provide the store to child components
     provide_context(store);
 
+    // Viewport gestures live on this untransformed container, NOT on the
+    // transformed `.xyflow__viewport` element (which slides out from under
+    // the cursor as soon as the view pans or zooms):
+    // * wheel            -> pan; ctrl+wheel / trackpad pinch -> zoom at cursor
+    // * primary-button   -> pan the pane after a small movement threshold
+    //   drag                (nodes and handles stop propagation on
+    //                       pointerdown, so their drags are unaffected;
+    //                       clicks without movement pass through untouched)
+    let (on_pane_pointer_down, on_pane_pointer_move, on_pane_pointer_up) =
+        use_pane_pan_handlers();
+
+    // The wheel listener is attached manually with `passive: false`.
+    // `on:wheel` cannot be used here: leptos delegates bubbling events to a
+    // single window-level listener, and browsers force wheel listeners on
+    // window/document/body to be passive — `preventDefault()` would be
+    // ignored and the wheel would scroll/zoom the page instead of the flow.
+    // A directly-attached element listener defaults to non-passive.
+    let on_wheel = use_wheel_handler();
+    let wheel_listener: StoredValue<Option<Closure<dyn FnMut(web_sys::WheelEvent)>>, LocalStorage> =
+        StoredValue::new_local(None);
+
+    Effect::new(move |_| {
+        let Some(container) = store.state.container_ref.get() else {
+            return;
+        };
+        // The container mounts once per SvelteFlow instance; guard anyway.
+        if wheel_listener.with_value(|l| l.is_some()) {
+            return;
+        }
+        let closure = Closure::<dyn FnMut(web_sys::WheelEvent)>::new({
+            let on_wheel = on_wheel.clone();
+            move |ev: web_sys::WheelEvent| on_wheel(ev)
+        });
+        let options = web_sys::AddEventListenerOptions::new();
+        options.set_passive(false);
+        let _ = container.add_event_listener_with_callback_and_add_event_listener_options(
+            "wheel",
+            closure.as_ref().unchecked_ref(),
+            &options,
+        );
+        wheel_listener.set_value(Some(closure));
+    });
+
+    on_cleanup(move || {
+        wheel_listener.update_value(|slot| {
+            if let Some(closure) = slot.take() {
+                if let Some(container) = store.state.container_ref.get_untracked() {
+                    let _ = container.remove_event_listener_with_callback(
+                        "wheel",
+                        closure.as_ref().unchecked_ref(),
+                    );
+                }
+            }
+        });
+    });
+
     view! {
-        <div class="xyflow svelte-flow" node_ref=store.state.container_ref>
+        <div
+            class="xyflow svelte-flow"
+            node_ref=store.state.container_ref
+            on:pointerdown=on_pane_pointer_down
+            on:pointermove=on_pane_pointer_move
+            on:pointerup=on_pane_pointer_up.clone()
+            on:pointercancel=on_pane_pointer_up
+        >
             {children.map(|children| children())}
         </div>
     }

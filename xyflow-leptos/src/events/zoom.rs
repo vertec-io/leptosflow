@@ -1,49 +1,75 @@
-//! Zoom event handlers for viewport zooming
+//! Wheel event handling for the viewport: trackpad pan + pinch/ctrl zoom
 
+use leptos::prelude::*;
 use leptos::ev;
 use crate::hooks::use_flow_store;
+use crate::utils::math::{wheel_delta_scale, wheel_zoom_factor};
 
-/// Hook that provides a wheel event handler for zooming the viewport
+/// Hook that provides the wheel handler for the flow container, matching
+/// xyflow/react-flow trackpad conventions:
 ///
-/// This hook sets up a wheel event handler that zooms the viewport in/out
-/// based on the mouse wheel delta.
+/// * `wheel` without `ctrlKey` **pans** by `(deltaX, deltaY)` — a two-finger
+///   trackpad scroll moves the canvas.
+/// * `wheel` with `ctrlKey` (trackpad pinch fires this, and so does
+///   ctrl+scroll) **zooms**, centered on the cursor: the flow point under the
+///   pointer stays stationary while the scale changes exponentially.
 ///
-/// # Example
+/// Deltas are normalized per `deltaMode` (line mode is ~16 px per unit) so
+/// Firefox line-scrolling feels like Chrome pixel-scrolling.
 ///
-/// ```ignore
-/// #[component]
-/// fn Viewport() -> impl IntoView {
-///     let on_wheel = use_zoom_handler();
-///     
-///     view! {
-///         <div on:wheel=on_wheel>
-///             // viewport content
-///         </div>
-///     }
-/// }
-/// ```
-pub fn use_zoom_handler() -> impl Fn(ev::WheelEvent) + Clone {
+/// Attach to the **untransformed** flow container (`SvelteFlow` does this),
+/// not the transformed `.xyflow__viewport` element — the transformed element
+/// slides out from under the cursor as soon as the view pans or zooms.
+///
+/// `preventDefault` is called so the page never scrolls or browser-zooms.
+/// Do NOT attach this with `on:wheel`: leptos delegates bubbling events to a
+/// single window-level listener, and browsers force wheel listeners on
+/// window/document/body to be passive, which silently disables
+/// `preventDefault`. Attach it directly to the element via web_sys with
+/// `AddEventListenerOptions { passive: false }`, as `SvelteFlow` does.
+///
+/// All signal reads are untracked: this runs in event handlers and must not
+/// leave reactive subscriptions in scope.
+pub fn use_wheel_handler() -> impl Fn(ev::WheelEvent) + Clone {
     let store = use_flow_store();
 
     move |event: ev::WheelEvent| {
-        // Prevent default scrolling behavior
+        // Keep the browser from scrolling/zooming the page
         event.prevent_default();
-        
-        // Get the wheel delta
-        let delta_y = event.delta_y();
-        
-        // Calculate zoom factor
-        // Negative delta = zoom in, positive delta = zoom out
-        // We use a small factor to make zooming smooth
-        let zoom_factor = if delta_y < 0.0 {
-            1.1 // Zoom in by 10%
+
+        let scale = wheel_delta_scale(event.delta_mode());
+        let dx = event.delta_x() * scale;
+        let dy = event.delta_y() * scale;
+
+        if event.ctrl_key() || event.meta_key() {
+            // Pinch gesture / ctrl+scroll: zoom centered on the cursor.
+            // Cursor position relative to the flow container's top-left,
+            // the same space the viewport CSS transform maps into.
+            let (px, py) = match store.state.container_ref.get_untracked() {
+                Some(container) => {
+                    let rect = container.get_bounding_client_rect();
+                    (
+                        event.client_x() as f64 - rect.left(),
+                        event.client_y() as f64 - rect.top(),
+                    )
+                }
+                // Container not mounted yet: zoom around the origin
+                None => (0.0, 0.0),
+            };
+            store.zoom_at(wheel_zoom_factor(dy), px, py);
         } else {
-            0.9 // Zoom out by 10%
-        };
-        
-        // Apply zoom
-        store.zoom_by(zoom_factor);
+            // Two-finger scroll: pan. Content follows scroll direction
+            // (scroll down moves the canvas content up), like xyflow's
+            // panOnScroll.
+            store.pan_by(-dx, -dy);
+        }
     }
+}
+
+/// Deprecated name for [`use_wheel_handler`].
+#[deprecated(note = "use `use_wheel_handler`; wheel now pans, and ctrl+wheel/pinch zooms at the cursor")]
+pub fn use_zoom_handler() -> impl Fn(ev::WheelEvent) + Clone {
+    use_wheel_handler()
 }
 
 /// Hook that provides zoom in/out functions for programmatic zooming
@@ -80,8 +106,9 @@ pub fn use_zoom_controls() -> (
     };
 
     let zoom_to = move |zoom: f64| {
-        let current_viewport = store.get_viewport();
-        let mut new_viewport = current_viewport;
+        // Untracked: called from event handlers; a tracked read here would
+        // subscribe the caller's scope to the viewport signal.
+        let mut new_viewport = store.get_viewport_untracked();
         new_viewport.zoom = zoom;
         store.set_viewport(new_viewport);
     };

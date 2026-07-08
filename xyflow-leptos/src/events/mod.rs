@@ -7,7 +7,11 @@ pub mod zoom;
 pub mod drag;
 pub mod connection;
 
+pub use pan::use_pane_pan_handlers;
+#[allow(deprecated)]
 pub use pan::use_pan_handlers;
+pub use zoom::use_wheel_handler;
+#[allow(deprecated)]
 pub use zoom::use_zoom_handler;
 pub use drag::use_node_drag_handlers;
 pub use connection::{use_connection_handlers, calculate_handle_position};

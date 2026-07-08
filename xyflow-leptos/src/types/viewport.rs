@@ -46,6 +46,39 @@ impl Viewport {
         }
     }
 
+    /// Zoom by `factor`, keeping the flow point under `(point_x, point_y)`
+    /// stationary on screen.
+    ///
+    /// `point_x`/`point_y` are in screen pixels relative to the flow
+    /// container's top-left corner (i.e. the same space the viewport's CSS
+    /// `translate(x, y) scale(zoom)` transform maps into). The new zoom is
+    /// clamped to `[min_zoom, max_zoom]`; the pan is derived from the zoom
+    /// that was actually applied, so clamping never shifts the view.
+    ///
+    /// Derivation: the flow point under the cursor is
+    /// `f = (p - pan) / zoom`. Requiring `p = f * zoom' + pan'` gives
+    /// `pan' = p - (p - pan) * zoom' / zoom`.
+    pub fn zoom_at_point(
+        &self,
+        factor: f64,
+        point_x: f64,
+        point_y: f64,
+        min_zoom: f64,
+        max_zoom: f64,
+    ) -> Viewport {
+        let new_zoom = (self.zoom * factor).clamp(min_zoom, max_zoom);
+        if self.zoom <= 0.0 || !self.zoom.is_finite() {
+            // Degenerate current zoom: just recover to the clamped zoom.
+            return Viewport::new(self.x, self.y, new_zoom);
+        }
+        let applied = new_zoom / self.zoom;
+        Viewport {
+            x: point_x - (point_x - self.x) * applied,
+            y: point_y - (point_y - self.y) * applied,
+            zoom: new_zoom,
+        }
+    }
+
     /// Get the SVG transform string for applying viewport transformations
     pub fn transform_string(&self) -> String {
         format!("translate({} {}) scale({})", self.x, self.y, self.zoom)
@@ -137,6 +170,74 @@ mod tests {
     fn test_transform_string() {
         let vp = Viewport::new(10.0, 20.0, 1.5);
         assert_eq!(vp.transform_string(), "translate(10 20) scale(1.5)");
+    }
+
+    #[test]
+    fn test_zoom_at_point_keeps_cursor_point_stationary() {
+        let vp = Viewport::new(37.0, -12.0, 1.3);
+        let (px, py) = (211.0, 143.0);
+
+        // Flow point under the cursor before the zoom
+        let (fx, fy) = vp.screen_to_viewport(px, py);
+
+        let zoomed = vp.zoom_at_point(1.4, px, py, 0.2, 4.0);
+
+        // Same flow point must map back to the same screen point
+        let (sx, sy) = zoomed.viewport_to_screen(fx, fy);
+        assert!((sx - px).abs() < 1e-9, "x drifted: {} vs {}", sx, px);
+        assert!((sy - py).abs() < 1e-9, "y drifted: {} vs {}", sy, py);
+        assert!((zoomed.zoom - 1.3 * 1.4).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_zoom_at_point_zoom_out_keeps_cursor_point_stationary() {
+        let vp = Viewport::new(-80.0, 55.0, 2.0);
+        let (px, py) = (10.0, 480.0);
+        let (fx, fy) = vp.screen_to_viewport(px, py);
+
+        let zoomed = vp.zoom_at_point(0.5, px, py, 0.2, 4.0);
+
+        let (sx, sy) = zoomed.viewport_to_screen(fx, fy);
+        assert!((sx - px).abs() < 1e-9);
+        assert!((sy - py).abs() < 1e-9);
+        assert!((zoomed.zoom - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_zoom_at_point_identity_factor_is_noop() {
+        let vp = Viewport::new(12.0, 34.0, 1.5);
+        let zoomed = vp.zoom_at_point(1.0, 100.0, 200.0, 0.2, 4.0);
+        assert_eq!(zoomed.x, vp.x);
+        assert_eq!(zoomed.y, vp.y);
+        assert_eq!(zoomed.zoom, vp.zoom);
+    }
+
+    #[test]
+    fn test_zoom_at_point_clamps_to_bounds() {
+        let vp = Viewport::new(0.0, 0.0, 1.0);
+
+        let maxed = vp.zoom_at_point(100.0, 50.0, 50.0, 0.2, 4.0);
+        assert_eq!(maxed.zoom, 4.0);
+
+        let minned = vp.zoom_at_point(0.001, 50.0, 50.0, 0.2, 4.0);
+        assert_eq!(minned.zoom, 0.2);
+
+        // Pan must be consistent with the zoom that was actually applied:
+        // the flow point under the cursor stays put even when clamped.
+        let (fx, fy) = vp.screen_to_viewport(50.0, 50.0);
+        let (sx, sy) = maxed.viewport_to_screen(fx, fy);
+        assert!((sx - 50.0).abs() < 1e-9);
+        assert!((sy - 50.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_zoom_at_point_at_max_zoom_is_stable() {
+        let vp = Viewport::new(-5.0, 9.0, 4.0);
+        let zoomed = vp.zoom_at_point(2.0, 123.0, 456.0, 0.2, 4.0);
+        // Already at max: nothing moves.
+        assert_eq!(zoomed.zoom, 4.0);
+        assert_eq!(zoomed.x, vp.x);
+        assert_eq!(zoomed.y, vp.y);
     }
 
     #[test]

@@ -160,11 +160,28 @@ fn EdgeComponent(
     };
 
     view! {
-        <g class=move || edge_class.get() data-id=edge_id.clone() on:click=on_click>
+        <g class=move || edge_class.get() data-id=edge_id.clone()>
+            // Visible path: presentation only. pointer-events is disabled
+            // inline so it never competes with the interaction path below.
             <path
                 class="xyflow__edge-path"
                 d=move || path_data.get().0
                 attr:marker-end="url(#xyflow__arrowclosed)"
+                style="pointer-events: none;"
+            />
+            // Interaction path: the standard xyflow invisible wide twin of
+            // the visible path. It carries the click target so edges are
+            // selectable within ~9px instead of requiring a pixel-perfect
+            // hit on a 1px stroke. `pointer-events: stroke` hits the whole
+            // stroke geometry even though the paint is transparent.
+            <path
+                class="xyflow__edge-interaction"
+                d=move || path_data.get().0
+                attr:fill="none"
+                attr:stroke="transparent"
+                attr:stroke-width="18"
+                style="pointer-events: stroke; cursor: pointer;"
+                on:click=on_click
             />
             {move || {
                 let (_, label_x, label_y) = path_data.get();

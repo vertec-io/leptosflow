@@ -311,6 +311,23 @@ impl FlowStore {
         });
     }
 
+    /// Zoom by `factor`, keeping the flow point under `(point_x, point_y)`
+    /// stationary on screen.
+    ///
+    /// The point is in screen pixels relative to the flow container's
+    /// top-left corner (e.g. `clientX - containerRect.left`). The zoom is
+    /// clamped to the store's `min_zoom`/`max_zoom`.
+    ///
+    /// All reads are untracked: this is called from event handlers and must
+    /// never leave reactive subscriptions in the caller's scope.
+    pub fn zoom_at(&self, factor: f64, point_x: f64, point_y: f64) {
+        let min_zoom = self.state.min_zoom.get_untracked();
+        let max_zoom = self.state.max_zoom.get_untracked();
+        self.state.viewport.update(|viewport| {
+            *viewport = viewport.zoom_at_point(factor, point_x, point_y, min_zoom, max_zoom);
+        });
+    }
+
     /// Fit all (visible) nodes into the container with 10% padding.
     ///
     /// See [`crate::utils::fit_view::fit_view_with_options`] for custom padding
@@ -533,5 +550,31 @@ mod tests {
         store.zoom_by(2.0);
         let viewport = store.get_viewport();
         assert_eq!(viewport.zoom, 2.0);
+    }
+
+    #[test]
+    fn test_zoom_at_respects_store_limits_and_anchors_cursor() {
+        let store = FlowStore::new(vec![], vec![]);
+        let min = store.state.min_zoom.get_untracked();
+        let max = store.state.max_zoom.get_untracked();
+
+        // A huge factor clamps to the store's max zoom
+        store.zoom_at(1000.0, 100.0, 50.0);
+        assert_eq!(store.get_viewport().zoom, max);
+
+        // A tiny factor clamps to the store's min zoom
+        store.zoom_at(1e-6, 100.0, 50.0);
+        assert_eq!(store.get_viewport().zoom, min);
+
+        // Within bounds: the flow point under the cursor stays put
+        store.set_viewport(Viewport::new(20.0, -10.0, 1.0));
+        let before = store.get_viewport();
+        let (fx, fy) = before.screen_to_viewport(150.0, 90.0);
+        store.zoom_at(1.5, 150.0, 90.0);
+        let after = store.get_viewport();
+        let (sx, sy) = after.viewport_to_screen(fx, fy);
+        assert!((sx - 150.0).abs() < 1e-9);
+        assert!((sy - 90.0).abs() < 1e-9);
+        assert!((after.zoom - 1.5).abs() < 1e-9);
     }
 }

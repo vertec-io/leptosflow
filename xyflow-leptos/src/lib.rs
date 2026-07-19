@@ -49,9 +49,9 @@ pub mod error;
 pub mod events;
 
 // Re-export common types and functions
-pub use types::{Node, Edge, Handle as HandleData, Viewport, Position, Change, HandleType, ConnectionMode, Connection, HandleBound, HandleBounds, HandleBoundPosition};
-pub use store::{FlowStore, FlowState, ConnectionState};
-pub use hooks::{use_flow_store, use_nodes, use_edges, use_viewport};
+pub use types::{Node, Edge, Handle as HandleData, Viewport, Position, Change, HandleType, ConnectionMode, Connection, IsValidConnection, HandleBound, HandleBounds, HandleBoundPosition};
+pub use store::{FlowStore, FlowState, ConnectionState, ConnectionCandidate, ContextMenuEvent, DeleteRequest};
+pub use hooks::{use_flow_store, use_nodes, use_edges, use_viewport, use_connection};
 pub use components::{
     SvelteFlow, Handle, HandlePosition, Background, BackgroundVariant,
     Panel, PanelPosition, Controls, ControlsOrientation, ConnectionLine,
@@ -61,5 +61,6 @@ pub use error::{FlowError, Result};
 pub use events::{
     use_connection_handlers, calculate_handle_position,
     use_wheel_handler, use_pane_pan_handlers,
+    use_context_menu_handler, use_flow_keydown_handler,
 };
 pub use utils::fit_view::{fit_view, fit_view_with_options, fit_bounds_with_options, FitViewOptions};

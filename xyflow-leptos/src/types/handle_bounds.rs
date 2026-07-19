@@ -49,10 +49,19 @@ pub struct HandleBound {
     pub width: f64,
     /// Height of the handle
     pub height: f64,
+    /// Whether a connection may END on this handle
+    /// (`is_connectable && is_connectable_end` on the `Handle` component).
+    /// Non-connectable handles are skipped by connection hit-testing.
+    #[serde(default = "default_connectable")]
+    pub connectable: bool,
+}
+
+fn default_connectable() -> bool {
+    true
 }
 
 impl HandleBound {
-    /// Create a new handle bound
+    /// Create a new handle bound (connectable by default)
     pub fn new(
         id: Option<String>,
         handle_type: HandleType,
@@ -70,9 +79,16 @@ impl HandleBound {
             y,
             width,
             height,
+            connectable: true,
         }
     }
-    
+
+    /// Set whether connections may end on this handle
+    pub fn with_connectable(mut self, connectable: bool) -> Self {
+        self.connectable = connectable;
+        self
+    }
+
     /// Get the center position of the handle relative to the node
     ///
     /// NOTE: This returns coordinates relative to the node's top-left corner.

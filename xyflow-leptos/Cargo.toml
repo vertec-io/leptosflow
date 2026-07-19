@@ -42,14 +42,6 @@ ssr = []
 with_ui_components = []
 with_utils = []
 
-[[example]]
-name = "basic"
-path = "examples/basic.rs"
-
-[[example]]
-name = "connections"
-path = "examples/connections.rs"
-
 [[bench]]
 name = "render_performance"
 harness = false

@@ -40,9 +40,14 @@ pub fn ConnectionLine() -> impl IntoView {
                 view! {
                     <svg class="xyflow__connectionline" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; overflow: visible;">
                         <g class="xyflow__connection">
+                            // Explicit fill="none": an open bezier with the
+                            // default SVG black fill renders as a dark band
+                            // under the line if the host stylesheet lacks
+                            // the .xyflow__connection-path rule.
                             <path
                                 d=path
                                 class=class
+                                fill="none"
                             />
                         </g>
                     </svg>

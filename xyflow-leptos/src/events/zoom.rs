@@ -3,16 +3,23 @@
 use leptos::prelude::*;
 use leptos::ev;
 use crate::hooks::use_flow_store;
+use crate::store::WheelMode;
 use crate::utils::math::{wheel_delta_scale, wheel_zoom_factor};
 
 /// Hook that provides the wheel handler for the flow container, matching
 /// xyflow/react-flow trackpad conventions:
 ///
-/// * `wheel` without `ctrlKey` **pans** by `(deltaX, deltaY)` — a two-finger
-///   trackpad scroll moves the canvas.
-/// * `wheel` with `ctrlKey` (trackpad pinch fires this, and so does
-///   ctrl+scroll) **zooms**, centered on the cursor: the flow point under the
-///   pointer stays stationary while the scale changes exponentially.
+/// * A `wheel` with `ctrlKey`/`metaKey` (trackpad pinch fires this, and so
+///   does ctrl+scroll) **always zooms**, centered on the cursor: the flow
+///   point under the pointer stays stationary while the scale changes
+///   exponentially.
+/// * A plain `wheel` (no modifier) is governed by the store's
+///   [`WheelMode`](crate::store::WheelMode): [`ZoomOnScroll`] (the default)
+///   zooms at the cursor, [`PanOnScroll`] pans by `(deltaX, deltaY)` — a
+///   two-finger trackpad scroll moves the canvas.
+///
+/// [`ZoomOnScroll`]: crate::store::WheelMode::ZoomOnScroll
+/// [`PanOnScroll`]: crate::store::WheelMode::PanOnScroll
 ///
 /// Deltas are normalized per `deltaMode` (line mode is ~16 px per unit) so
 /// Firefox line-scrolling feels like Chrome pixel-scrolling.
@@ -41,10 +48,16 @@ pub fn use_wheel_handler() -> impl Fn(ev::WheelEvent) + Clone {
         let dx = event.delta_x() * scale;
         let dy = event.delta_y() * scale;
 
-        if event.ctrl_key() || event.meta_key() {
-            // Pinch gesture / ctrl+scroll: zoom centered on the cursor.
-            // Cursor position relative to the flow container's top-left,
-            // the same space the viewport CSS transform maps into.
+        // ctrl/meta (pinch or ctrl+scroll) always zooms; a plain scroll zooms
+        // or pans per the store's WheelMode (default zoom, react-flow parity).
+        let zoom = event.ctrl_key()
+            || event.meta_key()
+            || matches!(store.get_wheel_mode_untracked(), WheelMode::ZoomOnScroll);
+
+        if zoom {
+            // Zoom centered on the cursor. Cursor position relative to the
+            // flow container's top-left, the same space the viewport CSS
+            // transform maps into.
             let (px, py) = match store.state.container_ref.get_untracked() {
                 Some(container) => {
                     let rect = container.get_bounding_client_rect();
@@ -58,7 +71,7 @@ pub fn use_wheel_handler() -> impl Fn(ev::WheelEvent) + Clone {
             };
             store.zoom_at(wheel_zoom_factor(dy), px, py);
         } else {
-            // Two-finger scroll: pan. Content follows scroll direction
+            // PanOnScroll: two-finger scroll pans. Content follows scroll direction
             // (scroll down moves the canvas content up), like xyflow's
             // panOnScroll.
             store.pan_by(-dx, -dy);

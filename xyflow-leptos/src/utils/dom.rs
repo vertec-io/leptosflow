@@ -85,10 +85,18 @@ pub fn get_handle_bounds(
             y,
             width,
             height,
+            connectable: element_accepts_connections(&handle_element),
         });
     }
-    
+
     handles
+}
+
+/// Whether a handle element accepts incoming connections, read from the
+/// classes the `Handle` component emits (`connectable` + `connectableend`).
+fn element_accepts_connections(handle_element: &HtmlElement) -> bool {
+    let class_list = handle_element.class_list();
+    class_list.contains("connectable") && class_list.contains("connectableend")
 }
 
 /// Measure a single handle element relative to its parent node element.
@@ -136,6 +144,7 @@ pub fn measure_handle_bound(handle_element: &HtmlElement, zoom: f64) -> Option<H
         y: (handle_rect.top() - node_rect.top()) / zoom,
         width: handle_rect.width() / zoom,
         height: handle_rect.height() / zoom,
+        connectable: element_accepts_connections(handle_element),
     })
 }
 

@@ -30,6 +30,8 @@
     --xy-node-border-radius-default: 3px;
     --xy-handle-background-color-default: #1a192b;
     --xy-handle-border-color-default: #fff;
+    --xy-handle-valid-color-default: #55dd99;
+    --xy-handle-invalid-color-default: #ff6060;
     --xy-controls-button-background-color-default: #fefefe;
     --xy-controls-button-background-color-hover-default: #f4f4f4;
     --xy-controls-button-color-default: inherit;
@@ -53,6 +55,14 @@
     touch-action: none;
     -webkit-user-select: none;
     user-select: none;
+}
+
+/* The container is focusable (tabindex="0") so Delete/Backspace/Escape
+ * shortcuts work after clicking the flow; no visible focus ring. */
+.xyflow:focus,
+.leptos-flow:focus,
+.svelte-flow:focus {
+    outline: none;
 }
 
 /* Viewport */
@@ -130,6 +140,13 @@
     stroke: var(--xy-connectionline-stroke, var(--xy-connectionline-stroke-default));
     stroke-width: var(--xy-connectionline-stroke-width, var(--xy-connectionline-stroke-width-default));
     fill: none;
+    stroke-dasharray: 5;
+}
+
+/* Solid + tinted while snapped to a handle that would form a valid connection */
+.xyflow__connection-path.valid {
+    stroke: var(--xy-handle-valid-color, var(--xy-handle-valid-color-default));
+    stroke-dasharray: none;
 }
 
 /* Handles */
@@ -144,6 +161,38 @@
     border: 1px solid var(--xy-handle-border-color, var(--xy-handle-border-color-default));
     border-radius: 100%;
     cursor: crosshair;
+}
+
+/* Cursor affordance: a drag can only START from a `connectablestart`
+ * handle. Locked handles (`is_connectable=false`) and end-only handles
+ * show not-allowed instead of failing silently; a valid drop candidate
+ * restores the crosshair while a drag is in flight. */
+.xyflow__handle:not(.connectablestart) {
+    cursor: not-allowed;
+}
+
+.xyflow__handle.connectingto.valid {
+    cursor: crosshair;
+}
+
+/* In-flight connection states (set reactively by the Handle component):
+ * `connectingfrom` on the drag's fixed end, `connectingto` + `valid`/
+ * `invalid` on the handle currently snapped under the cursor.
+ * !important: consumers routinely color ports with an inline
+ * `style="background: ..."` on the Handle — these transient interaction
+ * states must win over that. */
+.xyflow__handle.connectingfrom,
+.xyflow__handle.valid {
+    background-color: var(--xy-handle-valid-color, var(--xy-handle-valid-color-default)) !important;
+}
+
+.xyflow__handle.invalid {
+    background-color: var(--xy-handle-invalid-color, var(--xy-handle-invalid-color-default)) !important;
+}
+
+.xyflow__handle.connectingto {
+    transform-origin: center;
+    scale: 1.35;
 }
 
 .xyflow__handle-top {

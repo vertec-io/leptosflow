@@ -9,8 +9,8 @@ pub use state::FlowState;
 
 use std::collections::HashSet;
 use leptos::prelude::*;
-use crate::types::{Node, Edge, Viewport, Position};
-pub use state::ConnectionState;
+use crate::types::{Node, Edge, Viewport, Position, Connection};
+pub use state::{ConnectionState, ConnectionCandidate, ContextMenuEvent, DeleteRequest, WheelMode};
 
 /// The main flow store containing all state and actions
 ///
@@ -69,6 +69,20 @@ impl FlowStore {
         self.state.viewport.get_untracked()
     }
 
+    /// Get the current viewport non-reactively, returning `None` if the
+    /// store's reactive scope has already been disposed.
+    ///
+    /// Deferred callbacks (a `requestAnimationFrame` scheduled on mount, a
+    /// queued microtask) can fire *after* the owning component was unmounted
+    /// — e.g. a handle whose node was removed by a rapid re-render. Reading a
+    /// disposed signal with [`get_viewport_untracked`](Self::get_viewport_untracked)
+    /// panics, and a panic inside the reactive graph poisons it for the whole
+    /// app (every subsequent signal access then fails). Async/deferred reads
+    /// must use this fallible variant and bail when it returns `None`.
+    pub fn try_get_viewport_untracked(&self) -> Option<Viewport> {
+        self.state.viewport.try_get_untracked()
+    }
+
     /// Get selected node IDs (reactive)
     pub fn get_selected_nodes(&self) -> HashSet<String> {
         self.state.selected_nodes.get()
@@ -77,6 +91,16 @@ impl FlowStore {
     /// Get selected edge IDs (reactive)
     pub fn get_selected_edges(&self) -> HashSet<String> {
         self.state.selected_edges.get()
+    }
+
+    /// Get the wheel mode (non-reactive, for use in the wheel event handler)
+    pub fn get_wheel_mode_untracked(&self) -> WheelMode {
+        self.state.wheel_mode.get_untracked()
+    }
+
+    /// Set how a plain wheel scroll drives the viewport (zoom vs pan).
+    pub fn set_wheel_mode(&self, mode: WheelMode) {
+        self.state.wheel_mode.set(mode);
     }
 
     // ===== Node Actions =====
@@ -377,7 +401,43 @@ impl FlowStore {
         self.state.on_node_drag_end.set(None);
     }
 
+    // ===== Connection Callbacks =====
+
+    /// Register a callback fired when a connection drag completes on a valid
+    /// handle. The callback receives the `Connection` (source node/handle,
+    /// target node/handle, already ordered source→target).
+    ///
+    /// While an `on_connect` callback is registered the crate does NOT insert
+    /// an edge itself — the host decides what the connection becomes
+    /// (matching xyflow's `onConnect` semantics). Without one,
+    /// [`complete_connection`](Self::complete_connection) adds a default edge.
+    pub fn set_on_connect(&self, callback: Callback<Connection>) {
+        self.state.on_connect.set(Some(callback));
+    }
+
+    /// Remove the connect callback (restores default-edge insertion).
+    pub fn clear_on_connect(&self) {
+        self.state.on_connect.set(None);
+    }
+
+    /// Register a host-level validity predicate enforced on every candidate
+    /// while dragging and again on completion. Runs in addition to the
+    /// connection-mode check and any per-`Handle` `is_valid_connection`.
+    pub fn set_is_valid_connection(&self, callback: Callback<Connection, bool>) {
+        self.state.is_valid_connection.set(Some(callback));
+    }
+
+    /// Remove the host-level validity predicate.
+    pub fn clear_is_valid_connection(&self) {
+        self.state.is_valid_connection.set(None);
+    }
+
     // ===== Connection Actions =====
+    //
+    // State machine: `start_connection` → `update_connection`* →
+    // `complete_connection` | `cancel_connection`. Driven by the pointer
+    // handlers in [`crate::events::connection`]; the in-flight state is
+    // readable via `state.connection_in_progress` / `use_connection`.
 
     /// Start a connection from a handle
     pub fn start_connection(&self, from_node: String, from_handle: Option<String>, from_handle_type: crate::types::HandleType, from_position: Position) {
@@ -387,44 +447,229 @@ impl FlowStore {
             from_handle_type,
             from_position,
             to_position: from_position,
+            candidate: None,
             is_valid: false,
         };
         self.state.connection_in_progress.set(Some(connection));
     }
 
-    /// Update the connection target position
-    pub fn update_connection(&self, to_position: Position, is_valid: bool) {
+    /// Update the in-flight connection: free-end position, the handle it is
+    /// currently snapped to (if any), and whether completing there would be
+    /// valid. No-op when no connection is in flight.
+    pub fn update_connection(
+        &self,
+        to_position: Position,
+        candidate: Option<ConnectionCandidate>,
+        is_valid: bool,
+    ) {
         self.state.connection_in_progress.update(|conn| {
             if let Some(connection) = conn {
                 connection.to_position = to_position;
+                connection.candidate = candidate;
                 connection.is_valid = is_valid;
             }
         });
     }
 
-    /// Complete the connection and create an edge
-    pub fn complete_connection(&self, target_node: String, target_handle: Option<String>) -> Option<Edge> {
-        let connection = self.state.connection_in_progress.get_untracked();
+    /// Complete the in-flight connection on its current candidate handle.
+    ///
+    /// Succeeds only when a candidate is snapped AND the last
+    /// [`update_connection`](Self::update_connection) marked it valid;
+    /// otherwise this behaves like [`cancel_connection`](Self::cancel_connection)
+    /// and returns `None`. Either way the in-flight state is cleared — a drop
+    /// can never leave a stuck connection line.
+    ///
+    /// On success the `Connection` is passed to the registered `on_connect`
+    /// callback; if none is registered, a default edge is added instead.
+    pub fn complete_connection(&self) -> Option<Connection> {
+        let in_flight = self.state.connection_in_progress.get_untracked();
         self.state.connection_in_progress.set(None);
 
-        if let Some(conn) = connection {
-            if conn.is_valid {
-                // Generate edge ID
-                let edge_id = format!("e-{}-{}", conn.from_node, target_node);
-                let edge = Edge::new(edge_id, conn.from_node, target_node)
-                    .with_source_handle(conn.from_handle)
-                    .with_target_handle(target_handle);
-
-                self.add_edge(edge.clone());
-                return Some(edge);
-            }
+        let conn = in_flight?;
+        if !conn.is_valid {
+            return None;
         }
-        None
+        let connection = conn.to_connection()?;
+
+        if let Some(callback) = self.state.on_connect.get_untracked() {
+            // Host-owned completion: the host creates its own edge/binding.
+            callback.run(connection.clone());
+        } else {
+            let edge_id = format!(
+                "e-{}{}-{}{}",
+                connection.source,
+                connection
+                    .source_handle
+                    .as_deref()
+                    .map(|h| format!(":{h}"))
+                    .unwrap_or_default(),
+                connection.target,
+                connection
+                    .target_handle
+                    .as_deref()
+                    .map(|h| format!(":{h}"))
+                    .unwrap_or_default(),
+            );
+            let edge = Edge::new(
+                edge_id,
+                connection.source.clone(),
+                connection.target.clone(),
+            )
+            .with_source_handle(connection.source_handle.clone())
+            .with_target_handle(connection.target_handle.clone());
+            self.add_edge(edge);
+        }
+
+        Some(connection)
     }
 
     /// Cancel the connection in progress
     pub fn cancel_connection(&self) {
         self.state.connection_in_progress.set(None);
+    }
+
+    /// Focus the flow container so its keyboard shortcuts (Delete/Backspace,
+    /// Escape) work right away. Pointer handlers that `prevent_default()` on
+    /// pointerdown (connection + node drags) suppress the browser's native
+    /// focus-on-click, so they call this explicitly.
+    pub fn focus_container(&self) {
+        if let Some(container) = self.state.container_ref.get_untracked() {
+            let _ = container.focus();
+        }
+    }
+
+    // ===== Deletion =====
+
+    /// Register a callback fired when the user requests deletion of the
+    /// current selection (Delete/Backspace with the flow focused, or a
+    /// direct [`request_delete_selection`](Self::request_delete_selection)
+    /// call).
+    ///
+    /// While registered the crate does NOT delete anything itself — the host
+    /// receives the [`DeleteRequest`] and decides (matching `on_connect`
+    /// semantics). Without one, the selection is removed from the store.
+    pub fn set_on_delete_requested(&self, callback: Callback<DeleteRequest>) {
+        self.state.on_delete_requested.set(Some(callback));
+    }
+
+    /// Remove the delete callback (restores store-owned deletion).
+    pub fn clear_on_delete_requested(&self) {
+        self.state.on_delete_requested.set(None);
+    }
+
+    /// Request deletion of the currently selected nodes and edges.
+    ///
+    /// No-op returning `None` when nothing is selected. Otherwise the
+    /// [`DeleteRequest`] goes to the registered `on_delete_requested`
+    /// callback (host-owned deletion) or, when none is registered, is
+    /// applied directly via [`delete_elements`](Self::delete_elements).
+    pub fn request_delete_selection(&self) -> Option<DeleteRequest> {
+        let mut nodes: Vec<String> = self
+            .state
+            .selected_nodes
+            .get_untracked()
+            .into_iter()
+            .collect();
+        let mut edges: Vec<String> = self
+            .state
+            .selected_edges
+            .get_untracked()
+            .into_iter()
+            .collect();
+        // Deterministic order (HashSet iteration is not)
+        nodes.sort();
+        edges.sort();
+
+        let request = DeleteRequest { nodes, edges };
+        if request.is_empty() {
+            return None;
+        }
+
+        if let Some(callback) = self.state.on_delete_requested.get_untracked() {
+            // Host-owned deletion: the host mutates its own state.
+            callback.run(request.clone());
+        } else {
+            self.delete_elements(&request.nodes, &request.edges);
+        }
+        Some(request)
+    }
+
+    /// Remove the given nodes and edges from the store.
+    ///
+    /// Deleting a node also removes every edge attached to it (xyflow
+    /// semantics). Selection entries for removed elements are cleared.
+    /// Hosts using `on_delete_requested` can call this to apply a request
+    /// after their own bookkeeping.
+    pub fn delete_elements(&self, nodes: &[String], edges: &[String]) {
+        if nodes.is_empty() && edges.is_empty() {
+            return;
+        }
+
+        self.state.edges.update(|all_edges| {
+            all_edges.retain(|e| {
+                !edges.contains(&e.id)
+                    && !nodes.contains(&e.source)
+                    && !nodes.contains(&e.target)
+            });
+        });
+        if !nodes.is_empty() {
+            self.state.nodes.update(|all_nodes| {
+                all_nodes.retain(|n| !nodes.contains(&n.id));
+            });
+        }
+
+        // Drop stale selection entries (untracked read + guarded write,
+        // per the self-invalidating-effect rule)
+        let selected_nodes = self.state.selected_nodes.get_untracked();
+        if selected_nodes.iter().any(|id| nodes.contains(id)) {
+            self.state.selected_nodes.update(|selected| {
+                selected.retain(|id| !nodes.contains(id));
+            });
+        }
+        let selected_edges = self.state.selected_edges.get_untracked();
+        if selected_edges.iter().any(|id| edges.contains(id)) {
+            self.state.selected_edges.update(|selected| {
+                selected.retain(|id| !edges.contains(id));
+            });
+        }
+    }
+
+    // ===== Context Menus =====
+
+    /// Register a callback for right-clicks on nodes (built-in or custom —
+    /// resolved through the `.xyflow__node` ancestor's `data-id`). While
+    /// registered, the native browser menu is suppressed over nodes.
+    pub fn set_on_node_context_menu(&self, callback: Callback<ContextMenuEvent>) {
+        self.state.on_node_context_menu.set(Some(callback));
+    }
+
+    /// Remove the node context-menu callback.
+    pub fn clear_on_node_context_menu(&self) {
+        self.state.on_node_context_menu.set(None);
+    }
+
+    /// Register a callback for right-clicks on edges (resolved through the
+    /// `.xyflow__edge` group's `data-id`). While registered, the native
+    /// browser menu is suppressed over edges.
+    pub fn set_on_edge_context_menu(&self, callback: Callback<ContextMenuEvent>) {
+        self.state.on_edge_context_menu.set(Some(callback));
+    }
+
+    /// Remove the edge context-menu callback.
+    pub fn clear_on_edge_context_menu(&self) {
+        self.state.on_edge_context_menu.set(None);
+    }
+
+    /// Register a callback for right-clicks on the empty pane
+    /// (`ContextMenuEvent::id` is `None`). While registered, the native
+    /// browser menu is suppressed on the pane.
+    pub fn set_on_pane_context_menu(&self, callback: Callback<ContextMenuEvent>) {
+        self.state.on_pane_context_menu.set(Some(callback));
+    }
+
+    /// Remove the pane context-menu callback.
+    pub fn clear_on_pane_context_menu(&self) {
+        self.state.on_pane_context_menu.set(None);
     }
 }
 
@@ -550,6 +795,240 @@ mod tests {
         store.zoom_by(2.0);
         let viewport = store.get_viewport();
         assert_eq!(viewport.zoom, 2.0);
+    }
+
+    // ===== Connection state machine =====
+
+    use crate::types::HandleType;
+
+    fn start_test_connection(store: &FlowStore) {
+        store.start_connection(
+            "n1".to_string(),
+            Some("out".to_string()),
+            HandleType::Source,
+            Position::new(10.0, 10.0),
+        );
+    }
+
+    fn candidate(node: &str, handle: Option<&str>, handle_type: HandleType) -> ConnectionCandidate {
+        ConnectionCandidate {
+            node_id: node.to_string(),
+            handle_id: handle.map(str::to_string),
+            handle_type,
+        }
+    }
+
+    #[test]
+    fn test_connection_start_update_complete() {
+        let store = FlowStore::new(vec![], vec![]);
+        start_test_connection(&store);
+
+        let in_flight = store.state.connection_in_progress.get_untracked().unwrap();
+        assert_eq!(in_flight.from_node, "n1");
+        assert_eq!(in_flight.candidate, None);
+        assert!(!in_flight.is_valid);
+
+        // Cursor over empty space: position tracks, no candidate
+        store.update_connection(Position::new(50.0, 50.0), None, false);
+        let in_flight = store.state.connection_in_progress.get_untracked().unwrap();
+        assert_eq!(in_flight.to_position, Position::new(50.0, 50.0));
+        assert!(in_flight.candidate.is_none());
+
+        // Snap to a valid target handle and complete
+        store.update_connection(
+            Position::new(100.0, 20.0),
+            Some(candidate("n2", Some("in"), HandleType::Target)),
+            true,
+        );
+        let connection = store.complete_connection().expect("valid completion");
+        assert_eq!(connection.source, "n1");
+        assert_eq!(connection.source_handle.as_deref(), Some("out"));
+        assert_eq!(connection.target, "n2");
+        assert_eq!(connection.target_handle.as_deref(), Some("in"));
+
+        // No on_connect registered: default edge added, in-flight cleared
+        assert_eq!(store.get_edges().len(), 1);
+        assert_eq!(store.get_edges()[0].source, "n1");
+        assert_eq!(store.get_edges()[0].target, "n2");
+        assert!(store.state.connection_in_progress.get_untracked().is_none());
+    }
+
+    #[test]
+    fn test_connection_invalid_candidate_cannot_complete() {
+        let store = FlowStore::new(vec![], vec![]);
+        start_test_connection(&store);
+
+        // Candidate snapped but marked invalid (validators rejected it)
+        store.update_connection(
+            Position::new(100.0, 20.0),
+            Some(candidate("n2", Some("in"), HandleType::Target)),
+            false,
+        );
+
+        assert!(store.complete_connection().is_none());
+        assert_eq!(store.get_edges().len(), 0);
+        // No stuck in-flight state after a failed drop
+        assert!(store.state.connection_in_progress.get_untracked().is_none());
+    }
+
+    #[test]
+    fn test_connection_drop_on_empty_space_cancels() {
+        let store = FlowStore::new(vec![], vec![]);
+        start_test_connection(&store);
+        store.update_connection(Position::new(500.0, 500.0), None, false);
+
+        assert!(store.complete_connection().is_none());
+        assert_eq!(store.get_edges().len(), 0);
+        assert!(store.state.connection_in_progress.get_untracked().is_none());
+    }
+
+    #[test]
+    fn test_cancel_connection_clears_state() {
+        let store = FlowStore::new(vec![], vec![]);
+        start_test_connection(&store);
+        store.cancel_connection();
+        assert!(store.state.connection_in_progress.get_untracked().is_none());
+        // Completing after cancel is a no-op
+        assert!(store.complete_connection().is_none());
+    }
+
+    #[test]
+    fn test_update_and_complete_without_start_are_noops() {
+        let store = FlowStore::new(vec![], vec![]);
+        store.update_connection(Position::new(1.0, 1.0), None, true);
+        assert!(store.state.connection_in_progress.get_untracked().is_none());
+        assert!(store.complete_connection().is_none());
+    }
+
+    #[test]
+    fn test_on_connect_hands_completion_to_host() {
+        let store = FlowStore::new(vec![], vec![]);
+        let received: RwSignal<Option<crate::types::Connection>> = RwSignal::new(None);
+        store.set_on_connect(Callback::new(move |conn| received.set(Some(conn))));
+
+        start_test_connection(&store);
+        store.update_connection(
+            Position::new(100.0, 20.0),
+            Some(candidate("n2", Some("in"), HandleType::Target)),
+            true,
+        );
+        let connection = store.complete_connection().expect("valid completion");
+
+        // Host received the connection...
+        let got = received.get_untracked().expect("on_connect fired");
+        assert_eq!(got, connection);
+        // ...and the crate did NOT insert an edge (host owns edge creation)
+        assert_eq!(store.get_edges().len(), 0);
+    }
+
+    #[test]
+    fn test_drag_from_target_handle_orders_source_and_target() {
+        let store = FlowStore::new(vec![], vec![]);
+        // Drag out of a TARGET handle, drop on a SOURCE handle
+        store.start_connection(
+            "n2".to_string(),
+            Some("in".to_string()),
+            HandleType::Target,
+            Position::new(0.0, 0.0),
+        );
+        store.update_connection(
+            Position::new(10.0, 10.0),
+            Some(candidate("n1", Some("out"), HandleType::Source)),
+            true,
+        );
+        let connection = store.complete_connection().expect("valid completion");
+
+        // Connection is still ordered source -> target
+        assert_eq!(connection.source, "n1");
+        assert_eq!(connection.source_handle.as_deref(), Some("out"));
+        assert_eq!(connection.target, "n2");
+        assert_eq!(connection.target_handle.as_deref(), Some("in"));
+    }
+
+    // ===== Deletion =====
+
+    fn store_with_two_nodes_and_edge() -> FlowStore {
+        FlowStore::new(
+            vec![
+                Node::new("n1".to_string(), Position::new(0.0, 0.0)),
+                Node::new("n2".to_string(), Position::new(100.0, 0.0)),
+                Node::new("n3".to_string(), Position::new(200.0, 0.0)),
+            ],
+            vec![
+                Edge::new("e1".to_string(), "n1".to_string(), "n2".to_string()),
+                Edge::new("e2".to_string(), "n2".to_string(), "n3".to_string()),
+            ],
+        )
+    }
+
+    #[test]
+    fn test_request_delete_with_no_selection_is_noop() {
+        let store = store_with_two_nodes_and_edge();
+        assert!(store.request_delete_selection().is_none());
+        assert_eq!(store.get_nodes().len(), 3);
+        assert_eq!(store.get_edges().len(), 2);
+    }
+
+    #[test]
+    fn test_request_delete_selected_edge_removes_it_by_default() {
+        let store = store_with_two_nodes_and_edge();
+        store.select_edge("e1", false);
+
+        let request = store.request_delete_selection().expect("selection exists");
+        assert_eq!(request.edges, vec!["e1".to_string()]);
+        assert!(request.nodes.is_empty());
+
+        // No callback registered: store-owned deletion applied
+        assert_eq!(store.get_edges().len(), 1);
+        assert_eq!(store.get_edges()[0].id, "e2");
+        assert!(store.get_selected_edges().is_empty());
+        assert_eq!(store.get_nodes().len(), 3);
+    }
+
+    #[test]
+    fn test_request_delete_selected_node_removes_attached_edges() {
+        let store = store_with_two_nodes_and_edge();
+        store.select_node("n2", false);
+
+        store.request_delete_selection().expect("selection exists");
+
+        // n2 gone, and BOTH edges touching n2 gone with it
+        assert_eq!(store.get_nodes().len(), 2);
+        assert!(store.get_nodes().iter().all(|n| n.id != "n2"));
+        assert_eq!(store.get_edges().len(), 0);
+        assert!(store.get_selected_nodes().is_empty());
+    }
+
+    #[test]
+    fn test_on_delete_requested_hands_deletion_to_host() {
+        let store = store_with_two_nodes_and_edge();
+        let received: RwSignal<Option<DeleteRequest>> = RwSignal::new(None);
+        store.set_on_delete_requested(Callback::new(move |req| received.set(Some(req))));
+
+        store.select_edge("e1", false);
+        store.select_node("n1", true);
+        let request = store.request_delete_selection().expect("selection exists");
+
+        // Host received the request...
+        let got = received.get_untracked().expect("callback fired");
+        assert_eq!(got, request);
+        assert_eq!(got.nodes, vec!["n1".to_string()]);
+        assert_eq!(got.edges, vec!["e1".to_string()]);
+        // ...and the crate did NOT mutate the store (host owns deletion)
+        assert_eq!(store.get_nodes().len(), 3);
+        assert_eq!(store.get_edges().len(), 2);
+    }
+
+    #[test]
+    fn test_delete_elements_direct() {
+        let store = store_with_two_nodes_and_edge();
+        store.delete_elements(&[], &["e2".to_string()]);
+        assert_eq!(store.get_edges().len(), 1);
+        assert_eq!(store.get_edges()[0].id, "e1");
+
+        store.delete_elements(&["n1".to_string()], &[]);
+        assert_eq!(store.get_nodes().len(), 2);
+        assert_eq!(store.get_edges().len(), 0); // e1 was attached to n1
     }
 
     #[test]

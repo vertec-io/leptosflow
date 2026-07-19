@@ -86,6 +86,11 @@ pub fn use_node_drag_handlers(
                 }
             }
 
+            // prevent_default suppressed native focus-on-click; focus the
+            // container explicitly so keyboard shortcuts (Delete on the
+            // selection this click makes, Escape) keep working.
+            store.focus_container();
+
             let nodes = store.get_nodes_untracked();
             if let Some(node) = nodes.iter().find(|n| n.id == node_id) {
                 drag_state.set(DragState {

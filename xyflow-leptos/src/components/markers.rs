@@ -75,36 +75,46 @@ fn MarkerComponent(
     orient: String,
 ) -> impl IntoView {
     view! {
+        // NOTE: plain attribute names, NOT `attr:` prefixed — on plain
+        // elements the view! macro emits `attr:foo` as a literal attribute
+        // named "attr:foo" (the prefix is component-spread syntax), which
+        // silently breaks SVG presentation attributes.
         <marker
             class="xyflow__arrowhead"
             id=id
-            attr:markerWidth=format!("{}", width)
-            attr:markerHeight=format!("{}", height)
-            attr:viewBox="-10 -10 20 20"
-            attr:markerUnits=marker_units
-            attr:orient=orient
-            attr:refX="0"
-            attr:refY="0"
+            markerWidth=format!("{}", width)
+            markerHeight=format!("{}", height)
+            viewBox="-10 -10 20 20"
+            markerUnits=marker_units
+            orient=orient
+            refX="0"
+            refY="0"
         >
             {match marker_type {
                 // Colors are styled via CSS (.xyflow__arrowhead polyline)
+                // `context-stroke` paints the arrow with the stroke color of
+                // the edge path referencing the marker, so per-edge colors
+                // (CSS vars / classes) carry through to the arrowhead.
                 MarkerType::Arrow => view! {
                     <polyline
                         class="arrow"
-                        attr:fill="none"
-                        attr:stroke-linecap="round"
-                        attr:stroke-linejoin="round"
-                        attr:stroke-width=format!("{}", stroke_width)
-                        attr:points="-5,-4 0,0 -5,4"
+                        fill="none"
+                        stroke="context-stroke"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width=format!("{}", stroke_width)
+                        points="-5,-4 0,0 -5,4"
                     />
                 }.into_any(),
                 MarkerType::ArrowClosed => view! {
                     <polyline
                         class="arrowclosed"
-                        attr:stroke-linecap="round"
-                        attr:stroke-linejoin="round"
-                        attr:stroke-width=format!("{}", stroke_width)
-                        attr:points="-5,-4 0,0 -5,4 -5,-4"
+                        fill="context-stroke"
+                        stroke="context-stroke"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width=format!("{}", stroke_width)
+                        points="-5,-4 0,0 -5,4 -5,-4"
                     />
                 }.into_any(),
             }}

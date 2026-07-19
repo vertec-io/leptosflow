@@ -163,10 +163,15 @@ fn EdgeComponent(
         <g class=move || edge_class.get() data-id=edge_id.clone()>
             // Visible path: presentation only. pointer-events is disabled
             // inline so it never competes with the interaction path below.
+            // Attributes are plain names, NOT `attr:` prefixed — on plain
+            // elements that prefix emits a literal "attr:foo" attribute,
+            // which broke fill/stroke here (default SVG black fill rendered
+            // as a dark band under every edge).
             <path
                 class="xyflow__edge-path"
                 d=move || path_data.get().0
-                attr:marker-end="url(#xyflow__arrowclosed)"
+                fill="none"
+                marker-end="url(#xyflow__arrowclosed)"
                 style="pointer-events: none;"
             />
             // Interaction path: the standard xyflow invisible wide twin of
@@ -177,9 +182,9 @@ fn EdgeComponent(
             <path
                 class="xyflow__edge-interaction"
                 d=move || path_data.get().0
-                attr:fill="none"
-                attr:stroke="transparent"
-                attr:stroke-width="18"
+                fill="none"
+                stroke="transparent"
+                stroke-width="18"
                 style="pointer-events: stroke; cursor: pointer;"
                 on:click=on_click
             />
@@ -189,12 +194,12 @@ fn EdgeComponent(
                     view! {
                         <text
                             class="xyflow__edge-label"
-                            attr:x=format!("{}", label_x)
-                            attr:y=format!("{}", label_y)
-                            attr:text-anchor="middle"
-                            attr:dominant-baseline="middle"
-                            attr:font-size="12"
-                            attr:fill="#555"
+                            x=format!("{}", label_x)
+                            y=format!("{}", label_y)
+                            text-anchor="middle"
+                            dominant-baseline="middle"
+                            font-size="12"
+                            fill="#555"
                         >
                             {label}
                         </text>

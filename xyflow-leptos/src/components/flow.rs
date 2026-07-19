@@ -4,8 +4,10 @@ use leptos::prelude::*;
 use leptos::wasm_bindgen::JsCast;
 use leptos::wasm_bindgen::prelude::Closure;
 use crate::types::{Node, Edge};
-use crate::store::FlowStore;
-use crate::events::{use_pane_pan_handlers, use_wheel_handler};
+use crate::store::{FlowStore, WheelMode};
+use crate::events::{
+    use_context_menu_handler, use_flow_keydown_handler, use_pane_pan_handlers, use_wheel_handler,
+};
 
 /// The main flow component
 ///
@@ -44,6 +46,10 @@ pub fn SvelteFlow(
     /// Pre-built store to use instead of creating one from the signals.
     /// Lets the consumer keep a handle for `fit_view`, drag-end callbacks, etc.
     #[prop(optional)] store: Option<FlowStore>,
+    /// How a plain (no-modifier) wheel scroll drives the viewport. Reactive:
+    /// pass a signal and toggling it flips the store's mode live. When omitted
+    /// the store keeps its default ([`WheelMode::ZoomOnScroll`]).
+    #[prop(optional, into)] wheel_mode: Option<Signal<WheelMode>>,
     #[prop(optional)] children: Option<Children>,
 ) -> impl IntoView {
     // Use the provided store, or create one from the signals
@@ -57,6 +63,14 @@ pub fn SvelteFlow(
     // Provide the store to child components
     provide_context(store);
 
+    // Reactively mirror the host's wheel-mode signal into the store so the
+    // wheel handler (which reads it untracked) honors live toggles.
+    if let Some(wheel_mode) = wheel_mode {
+        Effect::new(move |_| {
+            store.set_wheel_mode(wheel_mode.get());
+        });
+    }
+
     // Viewport gestures live on this untransformed container, NOT on the
     // transformed `.xyflow__viewport` element (which slides out from under
     // the cursor as soon as the view pans or zooms):
@@ -67,6 +81,15 @@ pub fn SvelteFlow(
     //                       clicks without movement pass through untouched)
     let (on_pane_pointer_down, on_pane_pointer_move, on_pane_pointer_up) =
         use_pane_pan_handlers();
+
+    // Right-click: classify edge/node/pane and fire the registered
+    // context-menu callback (native menu suppressed only when one exists).
+    let on_context_menu = use_context_menu_handler();
+
+    // Keyboard: Delete/Backspace requests selection deletion, Escape
+    // cancels an in-flight connection. The container carries tabindex="0"
+    // so clicking anywhere in the flow focuses it and keys arrive here.
+    let on_keydown = use_flow_keydown_handler();
 
     // The wheel listener is attached manually with `passive: false`.
     // `on:wheel` cannot be used here: leptos delegates bubbling events to a
@@ -117,10 +140,13 @@ pub fn SvelteFlow(
         <div
             class="xyflow svelte-flow"
             node_ref=store.state.container_ref
+            tabindex="0"
             on:pointerdown=on_pane_pointer_down
             on:pointermove=on_pane_pointer_move
             on:pointerup=on_pane_pointer_up.clone()
             on:pointercancel=on_pane_pointer_up
+            on:contextmenu=on_context_menu
+            on:keydown=on_keydown
         >
             {children.map(|children| children())}
         </div>

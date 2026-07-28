@@ -38,13 +38,28 @@ pub fn wheel_delta_scale(delta_mode: u32) -> f64 {
     }
 }
 
+/// Per-pixel wheel-zoom sensitivity. Lower = finer (each wheel notch zooms
+/// less). Was `0.01`, which at a ~100px notch is `exp(-1) ≈ 2.7×` per notch —
+/// far too coarse. `0.0025` gives `exp(-0.25) ≈ 1.28×` per notch: granular but
+/// still responsive. A per-flow preference can scale this via
+/// [`wheel_zoom_factor_scaled`].
+pub const WHEEL_ZOOM_SENSITIVITY: f64 = 0.0025;
+
 /// Exponential zoom factor for a normalized (pixel-space) wheel deltaY.
 ///
 /// Scrolling up / pinching out (negative delta) zooms in. The exponential
 /// form composes multiplicatively across events, so zoom speed feels the
 /// same at every zoom level, and equal-and-opposite deltas cancel exactly.
 pub fn wheel_zoom_factor(delta_y_px: f64) -> f64 {
-    (-delta_y_px * 0.01).exp()
+    wheel_zoom_factor_scaled(delta_y_px, 1.0)
+}
+
+/// Zoom factor with a user sensitivity multiplier (`1.0` = default). Values
+/// `> 1.0` zoom faster per notch, `< 1.0` finer. Clamped to a sane range so a
+/// stored preference can never make the wheel inert or wild.
+pub fn wheel_zoom_factor_scaled(delta_y_px: f64, sensitivity: f64) -> f64 {
+    let s = clamp(sensitivity, 0.1, 4.0);
+    (-delta_y_px * WHEEL_ZOOM_SENSITIVITY * s).exp()
 }
 
 #[cfg(test)]

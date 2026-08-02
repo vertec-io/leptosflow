@@ -64,3 +64,33 @@ pub use events::{
     use_context_menu_handler, use_flow_keydown_handler,
 };
 pub use utils::fit_view::{fit_view, fit_view_with_options, fit_bounds_with_options, FitViewOptions};
+
+#[cfg(test)]
+mod styles_tests {
+    /// The animated-edge rules are a published contract: hosts set
+    /// `Edge::animated` and expect the shipped stylesheet to move the dash,
+    /// to leave the invisible interaction path alone, and to stand down when
+    /// the operating system asks for reduced motion. `STYLES` is an
+    /// `include_str!` of the real file, so asserting on it asserts on what
+    /// actually ships.
+    #[test]
+    fn styles_carry_the_animated_edge_contract() {
+        let css = crate::STYLES;
+
+        // The class the EdgeRenderer emits for `Edge::animated` is styled,
+        // and styled on the VISIBLE path only. Applying the dash to the wide
+        // transparent interaction twin would paint a second ghost track.
+        assert!(css.contains(".xyflow__edge.animated .xyflow__edge-path"));
+        assert!(!css.contains(".xyflow__edge.animated .xyflow__edge-interaction"));
+
+        // Dash pattern and cycle time are host-tunable; the keyframe walks
+        // the offset back to zero so a host can retime it without redefining
+        // the animation.
+        assert!(css.contains("--xy-edge-animation-dash"));
+        assert!(css.contains("--xy-edge-animation-duration"));
+        assert!(css.contains("--xy-edge-animation-offset"));
+
+        // Reduced motion stands the animation down entirely.
+        assert!(css.contains("prefers-reduced-motion: reduce"));
+    }
+}

@@ -119,10 +119,23 @@
 }
 
 /* Scoped to the visible path so the interaction path never gets a dash
- * pattern (dash gaps could create hit-test holes in some engines). */
+ * pattern (dash gaps could create hit-test holes in some engines).
+ *
+ * The dash pattern and the cycle time are variables so a host can tune how
+ * loud the animation reads without redefining the selector or the keyframe.
+ * `--xy-edge-animation-offset` must equal the SUM of the dash pattern for the
+ * cycle to be seamless: the keyframe walks the offset from that sum down to
+ * zero, which is exactly one repeat of the pattern. (With the default `5`
+ * shorthand the pattern is 5-on/5-off, so the sum is 10.) Getting it wrong
+ * does not break anything visually catastrophic — the dashes just jump at the
+ * loop point — but it is the one constraint worth stating.
+ *
+ * The animation is composited off the main thread by every engine we target
+ * (it animates only `stroke-dashoffset`), so a canvas full of animated edges
+ * costs no per-frame script. */
 .xyflow__edge.animated .xyflow__edge-path {
-    stroke-dasharray: 5;
-    animation: xyflow-dashdraw 0.5s linear infinite;
+    stroke-dasharray: var(--xy-edge-animation-dash, 5);
+    animation: xyflow-dashdraw var(--xy-edge-animation-duration, 0.5s) linear infinite;
 }
 
 .xyflow__edge.hidden {
@@ -131,7 +144,23 @@
 
 @keyframes xyflow-dashdraw {
     from {
-        stroke-dashoffset: 10;
+        stroke-dashoffset: var(--xy-edge-animation-offset, 10);
+    }
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+/* Reduced motion: stop the march, and drop the dash with it. Leaving a static
+ * dash behind would be worse than leaving nothing — in a host that already
+ * uses dashed strokes to mean something else, a frozen "animated" edge would
+ * silently claim that other meaning. Hosts that need the animated set to stay
+ * distinguishable without motion should carry a second, non-motion cue rather
+ * than lean on the dash. */
+@media (prefers-reduced-motion: reduce) {
+    .xyflow__edge.animated .xyflow__edge-path {
+        stroke-dasharray: none;
+        animation: none;
     }
 }
 
